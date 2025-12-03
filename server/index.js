@@ -35,13 +35,13 @@ initDb();
 // --- API ROUTES ---
 app.get('/api/weather', async (req, res) => {
     const { city, key } = req.query;
-    let debugLogs = []; // Ghi lại hành trình debug
+    let debugLogs = [];
 
     if (!city) return res.status(400).json({ error: "Thiếu tên thành phố" });
 
     debugLogs.push(`Request City: ${city}`);
 
-    // 1. Thử OpenWeatherMap (Nếu có key)
+    // 1. OpenWeatherMap (nếu có key)
     if (key && key !== 'null' && key !== '') {
         debugLogs.push("Attempting OpenWeatherMap...");
         try {
@@ -71,7 +71,7 @@ app.get('/api/weather', async (req, res) => {
         debugLogs.push("OWM Skipped: No API Key provided.");
     }
 
-    // 2. Fallback Open-Meteo (Miễn phí)
+    // 2. Open-Meteo fallback
     debugLogs.push("Attempting Open-Meteo (Fallback)...");
     try {
         const geoUrl = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=1&language=en&format=json`;
@@ -80,7 +80,6 @@ app.get('/api/weather', async (req, res) => {
         
         if (!geoData.results || geoData.results.length === 0) {
             debugLogs.push(`Geocoding Failed: No results for '${city}'`);
-            // TRẢ VỀ LỖI CHI TIẾT ĐỂ BOT ĐỌC
             return res.json({ 
                 error: "Không tìm thấy địa điểm.", 
                 details: debugLogs 
@@ -109,11 +108,10 @@ app.get('/api/weather', async (req, res) => {
             description: weatherCodeMap[current.weather_code] || `Mã: ${current.weather_code}`,
             humidity: current.relative_humidity_2m,
             wind_speed: current.wind_speed_10m,
-            debug_trace: debugLogs // Gửi kèm log thành công để check
+            debug_trace: debugLogs
         });
     } catch (err) { 
         debugLogs.push(`Open-Meteo Error: ${err.message}`);
-        // Trả về lỗi cuối cùng kèm full log
         res.status(500).json({ 
             error: "Thất bại toàn tập.", 
             details: debugLogs 

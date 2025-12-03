@@ -6,13 +6,26 @@ import { generateTheme } from './themeHelper';
 
 const generateId = () => Math.random().toString(36).substr(2, 9);
 
-// Prompt nghiêm ngặt về báo lỗi
-const DEFAULT_SYSTEM_INSTRUCTION = `Bạn là Gemin-Toon.
-QUY TẮC TOOL:
-1. Nếu tool 'get_weather' trả về lỗi hoặc thông tin debug, hãy BÁO CÁO NGUYÊN VĂN LỖI đó cho người dùng (Ví dụ: "Lỗi API: Key không hợp lệ"). ĐỪNG BỊA RA THỜI TIẾT.
-2. Nếu tool trả về thành công, hãy format Markdown đẹp.
+// Prompt nghiêm ngặt về tool
+const DEFAULT_SYSTEM_INSTRUCTION = `
+Bạn là Gemin-Toon, một trợ lý có khả năng dùng tool.
 
-DANH SÁCH TOOL: search_memory, change_theme_color, get_weather.`;
+LUẬT TOOL BẮT BUỘC:
+1. Nếu có tool phù hợp với yêu cầu (thời tiết, màu theme, tìm lại nội dung cũ), bạn PHẢI gọi tool tương ứng trước khi trả lời:
+   - Thời tiết → get_weather
+   - Đổi màu / theme / giao diện → change_theme_color
+   - Tìm lại nội dung cũ / ký ức → search_memory
+
+2. Tuyệt đối KHÔNG được bịa dữ liệu nếu tool trả về lỗi, trống hoặc không đủ thông tin.
+   - Nếu tool trả về lỗi hoặc trường dữ liệu thiếu, hãy báo lại NGUYÊN VĂN lỗi hoặc nội dung cảnh báo cho người dùng.
+   - Không được tự đoán thời tiết, màu theme hoặc nội dung ký ức.
+
+3. Khi tool trả về thành công, hãy:
+   - Tóm tắt và trình bày kết quả rõ ràng, sử dụng Markdown.
+   - Không thêm thông tin ngoài những gì đã có trong functionResponse, trừ khi đó là lời giải thích / hướng dẫn cách đọc kết quả.
+
+DANH SÁCH TOOL HIỆN CÓ: search_memory, change_theme_color, get_weather.
+`;
 
 export default function App() {
   const [config, setConfig] = useState({
@@ -194,9 +207,11 @@ export default function App() {
               const res = await fetch(`/api/search?q=${encodeURIComponent(args.keyword)}`);
               const data = await res.json();
               setTimeout(() => setToolStatus(null), 1000);
-              if (data.length === 0) return "Không tìm thấy thông tin nào.";
+              if (data.length === 0) return "Không tìm thấy thông tin nào phù hợp với từ khóa này.";
               return JSON.stringify(data);
-          } catch (e) { return "Lỗi DB."; }
+          } catch (e) { 
+              return "⚠️ TOOL ERROR: Lỗi truy vấn dữ liệu (DB)."; 
+          }
       } 
       
       if (functionName === 'change_theme_color') {
@@ -204,7 +219,11 @@ export default function App() {
           setToolStatus(`🎨 Đang phối màu: ${colorInput}...`);
           const newTheme = generateTheme(colorInput);
           applyTheme(newTheme);
-          await fetch('/api/settings/theme', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(newTheme) });
+          try {
+            await fetch('/api/settings/theme', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(newTheme) });
+          } catch (e) {
+            // nếu lỗi cũng không sao, theme đã apply local
+          }
           setTimeout(() => setToolStatus(null), 1000);
           return `Đã đổi sang theme: ${colorInput}.`;
       }
@@ -216,17 +235,24 @@ export default function App() {
               const data = await res.json();
               setTimeout(() => setToolStatus(null), 1000);
               
-              // QUAN TRỌNG: Trả về lỗi nguyên văn cho Bot đọc
+              // Nếu API báo lỗi rõ → trả nguyên văn cho model
               if (data.error) {
                   return `⚠️ HỆ THỐNG BÁO LỖI: ${data.error}. (Chi tiết: ${JSON.stringify(data.details)})`;
+              }
+
+              // Nếu thiếu dữ liệu chính → coi như lỗi, không được bịa
+              if (!data || !data.location || typeof data.temperature === 'undefined') {
+                  return `⚠️ HỆ THỐNG BÁO LỖI: Dữ liệu thời tiết không đầy đủ hoặc không hợp lệ. Raw: ${JSON.stringify(data)}`;
               }
               
               const src = data.source ? `[Nguồn: ${data.source}]` : "";
               return `Thời tiết tại ${data.location} ${src}:\n* **Nhiệt độ:** ${data.temperature}°C\n* **Tình trạng:** ${data.description}\n* **Cảm giác:** ${data.feels_like || data.temperature}°C\n* **Độ ẩm:** ${data.humidity}%\n* **Gió:** ${data.wind_speed} m/s`;
-          } catch (e) { return `⚠️ Lỗi mạng nghiêm trọng: ${e.message}`; }
+          } catch (e) { 
+              return `⚠️ HỆ THỐNG BÁO LỖI: Lỗi mạng nghiêm trọng khi gọi API thời tiết: ${e.message}`; 
+          }
       }
 
-      return "Tool không tồn tại.";
+      return "⚠️ TOOL ERROR: Tool không tồn tại hoặc chưa được khai báo.";
   };
 
   const callGemini = async (messages, forcedSystemPrompt) => {
@@ -244,8 +270,12 @@ export default function App() {
 
       if (firstPart?.functionCall) {
           const fn = firstPart.functionCall;
-          const toolResult = await executeTool(fn.name, fn.args);
-          const contentsWithFunction = [...contents, { role: 'model', parts: [{ functionCall: fn }] }, { role: 'function', parts: [{ functionResponse: { name: fn.name, response: { content: toolResult } } }] }];
+          const toolResult = await executeTool(fn.name, fn.args || {});
+          const contentsWithFunction = [
+              ...contents,
+              { role: 'model', parts: [{ functionCall: fn }] },
+              { role: 'user', parts: [{ functionResponse: { name: fn.name, response: { content: toolResult } } }] }
+          ];
           
           const res2 = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${config.geminiKey}`, {
               method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -292,11 +322,11 @@ export default function App() {
     const lowerInput = userText.toLowerCase();
     const normInput = lowerInput.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
-    if (forcedTool) {
+    if (forcedTool && forcedTool !== 'auto') {
         tempSystemPrompt = `${config.systemInstruction}\n[SYSTEM]: BẮT BUỘC gọi tool '${forcedTool}' ngay. Bỏ qua ngữ cảnh cũ.`;
         if (forcedTool === 'get_weather') setToolStatus("🌤️ Đang kết nối vệ tinh...");
         if (forcedTool === 'change_theme_color') setToolStatus("🎨 Đang chọn màu...");
-        if (forcedTool === 'search_memory') setToolStatus("🧠 Đang lục lọi ký ức...");
+        if (forcedTool === 'search_memory') setToolStatus("🧠 Đang lục tìm ký ức...");
     } else if (['màu', 'theme', 'nền', 'giao diện', 'mau', 'nen'].some(k => normInput.includes(k))) {
         tempSystemPrompt = `${config.systemInstruction}\n[SYSTEM]: Người dùng muốn đổi màu. Hãy gọi tool 'change_theme_color' NGAY LẬP TỨC.`;
         setToolStatus("🎨 Đang phân tích màu sắc...");
@@ -376,22 +406,40 @@ export default function App() {
            <h2 className="font-black text-xl flex gap-2 uppercase tracking-tight"><Sparkles/> {config.activeProvider.toUpperCase()}</h2>
            <button onClick={() => setShowSidebar(false)} className="md:hidden"><X/></button>
         </div>
-        <div className="p-4"><button onClick={createNewSession} className="w-full bg-[var(--component-bg)] text-[var(--text-color)] border-4 border-[var(--border-color)] p-3 font-bold shadow-hard hover:shadow-none hover:translate-y-1 flex items-center justify-center gap-2 uppercase"><Plus/> New Chat</button></div>
+        <div className="p-4">
+          <button onClick={createNewSession} className="w-full bg-[var(--component-bg)] text-[var(--text-color)] border-4 border-[var(--border-color)] p-3 font-bold shadow-hard hover:shadow-none hover:translate-y-1 flex items-center justify-center gap-2 uppercase">
+            <Plus/> New Chat
+          </button>
+        </div>
         <div className="flex-1 overflow-y-auto p-4 space-y-3">
             {sessions.map(s => (
-                <div key={s.id} onClick={() => { setCurrentSessionId(s.id); if(window.innerWidth < 768) setShowSidebar(false); }} className={`p-3 border-4 border-[var(--border-color)] cursor-pointer truncate transition-all ${currentSessionId === s.id ? 'bg-[var(--accent-color)] text-white shadow-hard' : 'bg-[var(--component-bg)] hover:bg-gray-100'}`}>
+                <div
+                  key={s.id}
+                  onClick={() => { setCurrentSessionId(s.id); if(window.innerWidth < 768) setShowSidebar(false); }}
+                  className={`p-3 border-4 border-[var(--border-color)] cursor-pointer truncate transition-all ${
+                    currentSessionId === s.id
+                      ? 'bg-[var(--accent-color)] text-white shadow-hard'
+                      : 'bg-[var(--component-bg)] hover:bg-gray-100'
+                  }`}
+                >
                     <div className="flex justify-between items-center">
                         <span className="truncate font-bold text-sm">{s.title}</span>
-                        <button onClick={(e) => deleteSession(e, s.id)} className="hover:text-red-500"><Trash2 size={16}/></button>
+                        <button onClick={(e) => deleteSession(e, s.id)} className="hover:text-red-500">
+                          <Trash2 size={16}/>
+                        </button>
                     </div>
                 </div>
             ))}
         </div>
         
         <div className="p-4 border-t-4 border-[var(--border-color)] bg-[var(--component-bg)] grid grid-cols-2 gap-2">
-             <button onClick={handleExportToon} className="flex items-center justify-center gap-1 text-xs font-black border-4 border-[var(--border-color)] p-2 bg-yellow-300 text-black hover:bg-yellow-400 shadow-hard hover:shadow-none transition-all uppercase"><Download size={14} /> SAVE</button>
+             <button onClick={handleExportToon} className="flex items-center justify-center gap-1 text-xs font-black border-4 border-[var(--border-color)] p-2 bg-yellow-300 text-black hover:bg-yellow-400 shadow-hard hover:shadow-none transition-all uppercase">
+               <Download size={14} /> SAVE
+             </button>
              <input type="file" ref={fileInputRef} onChange={handleImportToon} className="hidden" accept=".toon" />
-             <button onClick={() => fileInputRef.current.click()} className="flex items-center justify-center gap-1 text-xs font-black border-4 border-[var(--border-color)] p-2 bg-green-300 text-black hover:bg-green-400 shadow-hard hover:shadow-none transition-all uppercase"><Upload size={14} /> LOAD</button>
+             <button onClick={() => fileInputRef.current.click()} className="flex items-center justify-center gap-1 text-xs font-black border-4 border-[var(--border-color)] p-2 bg-green-300 text-black hover:bg-green-400 shadow-hard hover:shadow-none transition-all uppercase">
+               <Upload size={14} /> LOAD
+             </button>
         </div>
       </div>
 
@@ -402,11 +450,16 @@ export default function App() {
                 <h1 className="font-black text-2xl truncate uppercase tracking-tight">{sessions.find(s => s.id === currentSessionId)?.title}</h1>
             </div>
             <div className="flex items-center gap-3">
-                <button onClick={() => setUseFullContext(!useFullContext)} className={`hidden sm:flex items-center gap-2 px-3 py-1.5 text-xs font-black border-4 border-[var(--border-color)] shadow-hard hover:shadow-none transition-all uppercase ${useFullContext ? 'bg-pink-400 text-black' : 'bg-emerald-400 text-black'}`}>
+                <button
+                  onClick={() => setUseFullContext(!useFullContext)}
+                  className={`hidden sm:flex items-center gap-2 px-3 py-1.5 text-xs font-black border-4 border-[var(--border-color)] shadow-hard hover:shadow-none transition-all uppercase ${
+                    useFullContext ? 'bg-pink-400 text-black' : 'bg-emerald-400 text-black'
+                  }`}
+                >
                     {useFullContext ? <Brain size={14} /> : <Zap size={14} />} <span>{useFullContext ? 'FULL' : 'ECO'}</span>
                 </button>
 
-                <div title={`DB: ${dbStatus}`} className={`w-4 h-4 rounded-full border-2 border-black ${dbStatus === 'online' ? 'bg-green-500' : 'bg-red-500'}`}></div>
+                <div title={`DB: ${dbStatus}`} className={`w-4 h-4 rounded-full border-2 border-black ${dbStatus === 'online' ? 'bg-green-500' : dbStatus === 'syncing' ? 'bg-yellow-400' : 'bg-red-500'}`}></div>
                 <button onClick={() => setIsConfiguring(true)} className="hover:rotate-90 transition-transform"><Settings size={28}/></button>
             </div>
         </header>
@@ -414,7 +467,9 @@ export default function App() {
         <div className="flex-1 overflow-y-auto p-4 space-y-6">
             {currentSessionMessages.map((msg, idx) => (
                 <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                    <div className={`max-w-[85%] md:max-w-[70%] p-4 border-4 border-[var(--border-color)] text-base font-medium whitespace-pre-wrap shadow-hard ${msg.role === 'user' ? 'bg-[var(--accent-color)] text-white rounded-none' : 'bg-[var(--component-bg)] rounded-none'}`}>
+                    <div className={`max-w-[85%] md:max-w-[70%] p-4 border-4 border-[var(--border-color)] text-base font-medium whitespace-pre-wrap shadow-hard ${
+                      msg.role === 'user' ? 'bg-[var(--accent-color)] text-white rounded-none' : 'bg-[var(--component-bg)] rounded-none'
+                    }`}>
                         <div className="font-black text-xs mb-2 opacity-80 flex items-center gap-1 uppercase tracking-widest border-b-2 border-current pb-1 w-fit">
                             {msg.role === 'user' ? <User size={12}/> : <Bot size={12}/>} {msg.role}
                         </div>
@@ -422,15 +477,37 @@ export default function App() {
                     </div>
                 </div>
             ))}
-            {toolStatus && <div className="flex justify-start"><div className="bg-yellow-300 border-4 border-black p-3 text-sm font-black flex gap-2 animate-bounce text-black shadow-hard"><Wrench size={18}/> {toolStatus}</div></div>}
-            {isLoading && !toolStatus && <div className="flex justify-start"><div className="bg-[var(--component-bg)] border-4 border-[var(--border-color)] p-4 shadow-hard flex gap-2"><div className="w-3 h-3 bg-[var(--text-color)] animate-bounce"></div><div className="w-3 h-3 bg-[var(--text-color)] animate-bounce delay-75"></div><div className="w-3 h-3 bg-[var(--text-color)] animate-bounce delay-150"></div></div></div>}
+            {toolStatus && (
+              <div className="flex justify-start">
+                <div className="bg-yellow-300 border-4 border-black p-3 text-sm font-black flex gap-2 animate-bounce text-black shadow-hard">
+                  <Wrench size={18}/> {toolStatus}
+                </div>
+              </div>
+            )}
+            {isLoading && !toolStatus && (
+              <div className="flex justify-start">
+                <div className="bg-[var(--component-bg)] border-4 border-[var(--border-color)] p-4 shadow-hard flex gap-2">
+                  <div className="w-3 h-3 bg-[var(--text-color)] animate-bounce"></div>
+                  <div className="w-3 h-3 bg-[var(--text-color)] animate-bounce delay-75"></div>
+                  <div className="w-3 h-3 bg-[var(--text-color)] animate-bounce delay-150"></div>
+                </div>
+              </div>
+            )}
             <div ref={messagesEndRef} />
         </div>
 
         <div className="bg-[var(--component-bg)] border-t-4 border-[var(--border-color)] p-6">
             <div className="max-w-4xl mx-auto flex gap-3 relative">
                 <div className="relative flex items-center">
-                    <button onClick={() => setForcedTool(forcedTool ? null : 'auto')} className={`p-3 border-4 border-[var(--border-color)] shadow-hard hover:shadow-none transition-all ${forcedTool ? 'bg-red-500 text-white animate-pulse' : 'bg-gray-200 text-black'}`} title="Ép dùng Tool (Manual Override)"><Wrench size={24}/></button>
+                    <button
+                      onClick={() => setForcedTool(forcedTool ? null : 'auto')}
+                      className={`p-3 border-4 border-[var(--border-color)] shadow-hard hover:shadow-none transition-all ${
+                        forcedTool ? 'bg-red-500 text-white animate-pulse' : 'bg-gray-200 text-black'
+                      }`}
+                      title="Ép dùng Tool (Manual Override)"
+                    >
+                      <Wrench size={24}/>
+                    </button>
                     {forcedTool === 'auto' && (
                         <div className="absolute bottom-full left-0 mb-2 w-48 bg-white border-4 border-black shadow-hard flex flex-col z-50 overflow-hidden">
                             <button onClick={() => setForcedTool('search_memory')} className="p-3 hover:bg-gray-200 text-left text-xs font-bold border-b border-black">🔍 Tìm Ký Ức</button>
@@ -439,8 +516,22 @@ export default function App() {
                         </div>
                     )}
                 </div>
-                <input type="text" value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()} placeholder={forcedTool && forcedTool !== 'auto' ? `[CHẾ ĐỘ ÉP TOOL]: ${forcedTool}...` : "Nhập tin nhắn..."} disabled={isLoading} className="flex-1 border-4 border-[var(--border-color)] p-4 shadow-hard text-lg font-bold bg-[var(--app-bg)] focus:outline-none focus:translate-y-1 focus:shadow-none transition-all placeholder-[var(--text-color)]/50"/>
-                <button onClick={handleSendMessage} disabled={isLoading || !input.trim()} className="bg-[var(--accent-color)] text-white border-4 border-[var(--border-color)] px-8 shadow-hard hover:shadow-none hover:translate-y-1 font-black uppercase tracking-widest"><Send size={24}/></button>
+                <input
+                  type="text"
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
+                  placeholder={forcedTool && forcedTool !== 'auto' ? `[CHẾ ĐỘ ÉP TOOL]: ${forcedTool}...` : "Nhập tin nhắn..."}
+                  disabled={isLoading}
+                  className="flex-1 border-4 border-[var(--border-color)] p-4 shadow-hard text-lg font-bold bg-[var(--app-bg)] focus:outline-none focus:translate-y-1 focus:shadow-none transition-all placeholder-[var(--text-color)]/50"
+                />
+                <button
+                  onClick={handleSendMessage}
+                  disabled={isLoading || !input.trim()}
+                  className="bg-[var(--accent-color)] text-white border-4 border-[var(--border-color)] px-8 shadow-hard hover:shadow-none hover:translate-y-1 font-black uppercase tracking-widest"
+                >
+                  <Send size={24}/>
+                </button>
             </div>
         </div>
       </div>
