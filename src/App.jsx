@@ -26,7 +26,7 @@ export default function App() {
   });
   
   const [isConfiguring, setIsConfiguring] = useState(false);
-  const [showSidebar, setShowSidebar] = useState(true); // Mobile: toggles overlay. Desktop: toggles width.
+  const [showSidebar, setShowSidebar] = useState(true);
   const [useFullContext, setUseFullContext] = useState(false);
   const [dbStatus, setDbStatus] = useState('offline');
   const [toolStatus, setToolStatus] = useState(null);
@@ -143,7 +143,6 @@ export default function App() {
     setSessions(prev => [newSession, ...prev]);
     setCurrentSessionId(newSession.id);
     saveSessionToDb(newSession);
-    // On mobile, hide sidebar after creating new chat
     if (window.innerWidth < 768) setShowSidebar(false);
   };
 
@@ -316,11 +315,13 @@ export default function App() {
     <div className="min-h-screen flex items-center justify-center p-4 font-mono bg-[var(--app-bg)] transition-colors">
         <div className="max-w-2xl w-full bg-[var(--component-bg)] text-[var(--text-color)] border-4 border-[var(--border-color)] shadow-hard-lg p-8 max-h-[90vh] overflow-y-auto rounded-none">
             <h1 className="text-3xl font-black mb-6 flex items-center gap-3 uppercase tracking-tighter"><Settings size={32}/> CẤU HÌNH BOT</h1>
+            
             <div className="space-y-6">
                 <div className="border-4 border-[var(--border-color)] p-4 bg-yellow-200 text-black shadow-hard-sm">
                     <h3 className="font-bold flex items-center gap-2 mb-2 uppercase"><ScrollText size={20}/> Nhập Vai (System Prompt)</h3>
                     <textarea rows="3" value={config.systemInstruction} onChange={e => setConfig({...config, systemInstruction: e.target.value})} className="w-full border-2 border-black p-3 text-sm font-bold bg-white focus:outline-none focus:ring-2 ring-black"/>
                 </div>
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="border-4 border-[var(--border-color)] p-4 bg-blue-200 text-black shadow-hard-sm">
                         <h3 className="font-bold flex items-center gap-2 mb-2 uppercase"><Sparkles size={20}/> Gemini</h3>
@@ -333,11 +334,13 @@ export default function App() {
                         <input type="password" placeholder="API Key..." value={config.openaiKey} onChange={e => setConfig({...config, openaiKey: e.target.value})} className="w-full border-2 border-black p-2 font-bold"/>
                     </div>
                 </div>
+
                 <div className="border-4 border-[var(--border-color)] p-4 bg-orange-200 text-black shadow-hard-sm">
                     <h3 className="font-bold flex items-center gap-2 mb-2 uppercase"><Cloud size={20}/> Weather Key (OpenWeatherMap)</h3>
                     <input type="password" placeholder="OpenWeatherMap API Key..." value={config.weatherKey} onChange={e => setConfig({...config, weatherKey: e.target.value})} className="w-full border-2 border-black p-2 font-bold"/>
                     <p className="text-xs mt-1">Cần key để xem thời tiết. Lấy tại openweathermap.org</p>
                 </div>
+
                 <div>
                     <label className="font-black block mb-2 uppercase">Model Mặc Định:</label>
                     <select value={config.activeProvider} onChange={e => setConfig({...config, activeProvider: e.target.value})} className="w-full border-4 border-[var(--border-color)] p-3 font-bold bg-white text-black shadow-hard-sm focus:outline-none">
@@ -345,6 +348,7 @@ export default function App() {
                         <option value="openai">OpenAI Compatible</option>
                     </select>
                 </div>
+
                 <button onClick={() => saveConfig(config)} className="w-full bg-[var(--accent-color)] text-white font-black text-xl py-4 border-4 border-[var(--border-color)] shadow-hard hover:translate-y-1 hover:shadow-none transition-all uppercase">LƯU & BẮT ĐẦU</button>
             </div>
         </div>
@@ -353,16 +357,8 @@ export default function App() {
 
   return (
     <div className="flex h-screen overflow-hidden font-mono bg-[var(--app-bg)] text-[var(--text-color)] transition-colors">
-      <div className={`fixed md:static inset-y-0 left-0 z-40 w-72 bg-[var(--sidebar-bg)] border-r-4 border-[var(--border-color)] flex flex-col transform transition-transform duration-300 ease-in-out ${showSidebar ? 'translate-x-0' : '-translate-x-full'} md:w-72 md:translate-x-0`}> 
-        {/* Adjusted sidebar classes above: 
-            - Mobile: 'fixed' + z-40. Toggles via translate.
-            - Desktop: 'static' (flex item). Always visible 'md:translate-x-0'. 
-            Wait, user wanted collapsible on desktop too.
-            Let's use a cleaner approach for responsive + collapsible desktop.
-        */}
-      </div>
-      {/* Re-render Sidebar Logic properly */}
-       <div className={`
+      {/* Sidebar fixed + collapsed logic */}
+      <div className={`
           fixed inset-y-0 left-0 z-40 
           w-72 bg-[var(--sidebar-bg)] border-r-4 border-[var(--border-color)] 
           flex flex-col transition-all duration-300 ease-in-out
@@ -439,7 +435,7 @@ export default function App() {
         <div className="bg-[var(--component-bg)] border-t-4 border-[var(--border-color)] p-6">
             <div className="max-w-4xl mx-auto flex gap-3 relative">
                 <div className="relative flex items-center">
-                    <button onClick={() => setForcedTool(forcedTool ? null : 'auto')} className={`p-3 border-4 border-[var(--border-color)] shadow-hard hover:shadow-none transition-all ${forcedTool ? 'bg-red-500 text-white animate-pulse' : 'bg-gray-200 text-black'}`} title="Ép dùng Tool"><Wrench size={24}/></button>
+                    <button onClick={() => setForcedTool(forcedTool ? null : 'auto')} className={`p-3 border-4 border-[var(--border-color)] shadow-hard hover:shadow-none transition-all ${forcedTool ? 'bg-red-500 text-white animate-pulse' : 'bg-gray-200 text-black'}`} title="Ép dùng Tool (Manual Override)"><Wrench size={24}/></button>
                     {forcedTool === 'auto' && (
                         <div className="absolute bottom-full left-0 mb-2 w-48 bg-white border-4 border-black shadow-hard flex flex-col z-50">
                             <button onClick={() => setForcedTool('search_memory')} className="p-2 hover:bg-gray-200 text-left text-xs font-bold border-b border-black">🔍 Tìm Ký Ức</button>
