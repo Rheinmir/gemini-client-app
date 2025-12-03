@@ -200,12 +200,13 @@ export default function App() {
       } 
       
       if (functionName === 'change_theme_color') {
-          setToolStatus(`🎨 Đang tô màu: ${args.colorName}...`);
-          const newTheme = generateTheme(args.colorName);
+          const colorInput = args.colorName || args.color || 'default'; // Fallback
+          setToolStatus(`🎨 Đang phối màu: ${colorInput}...`);
+          const newTheme = generateTheme(colorInput);
           applyTheme(newTheme);
           await fetch('/api/settings/theme', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(newTheme) });
           setTimeout(() => setToolStatus(null), 1000);
-          return `Đã đổi sang theme: ${args.colorName}.`;
+          return `Đã đổi sang theme: ${colorInput}.`;
       }
 
       if (functionName === 'get_weather') {
