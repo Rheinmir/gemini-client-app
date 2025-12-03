@@ -4,8 +4,9 @@ const COLOR_MAP = {
     'hường': '#fb7185', 'hồng': '#fb7185', 'đỏ': '#ef4444', 'xanh': '#3b82f6', 'xanh lá': '#22c55e', 'xanh dương': '#3b82f6', 'xanh biển': '#0ea5e9', 'cam': '#f97316', 'vàng': '#facc15', 'tím': '#a855f7', 'đen': '#18181b', 'trắng': '#ffffff', 'xám': '#94a3b8', 'mộng mơ': '#d8b4fe', 'ngầu': '#111827', 'tối': 'dark', 'sáng': 'light', 'matrix': 'matrix'
 };
 export const generateTheme = (inputColor) => {
-    let colorKey = inputColor.toLowerCase().trim();
-    if (['default', 'reset', 'mặc định', 'bình thường'].includes(colorKey)) return DEFAULT_THEME;
+    if (!inputColor) return DEFAULT_THEME;
+    let colorKey = String(inputColor).toLowerCase().trim();
+    if (['default', 'reset', 'mặc định'].includes(colorKey)) return DEFAULT_THEME;
     if (colorKey === 'matrix') return { appBg: '#000000', sidebarBg: '#001100', componentBg: '#002200', accentColor: '#00ff00', textColor: '#00ff00', borderColor: '#00ff00', shadowColor: '#004400' };
     const vietKeys = Object.keys(COLOR_MAP).sort((a, b) => b.length - a.length);
     for (const key of vietKeys) { if (colorKey.includes(key)) { colorKey = COLOR_MAP[key]; break; } }

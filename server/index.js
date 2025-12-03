@@ -4,6 +4,7 @@ import { fileURLToPath } from 'url';
 import sqlite3 from 'sqlite3';
 import { open } from 'sqlite';
 import cors from 'cors';
+import fetch from 'node-fetch'; // Explicit import for safety
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -35,22 +36,63 @@ initDb();
 app.get('/api/weather', async (req, res) => {
     const { city, key } = req.query;
     if (!city) return res.status(400).json({ error: "Missing city" });
-    if (!key) return res.status(400).json({ error: "Missing Weather API Key" });
+
+    // 1. OWM
+    if (key && key !== 'null' && key !== '') {
+        try {
+            const url = `https://api.openweathermap.org/data/2.5/weather?q=${encodeURIComponent(city)}&appid=${key}&units=metric&lang=vi`;
+            const resp = await fetch(url);
+            const data = await resp.json();
+            if (data.cod === 200) {
+                return res.json({
+                    source: "OpenWeatherMap",
+                    location: `${data.name}, ${data.sys.country}`,
+                    temperature: data.main.temp,
+                    feels_like: data.main.feels_like,
+                    description: data.weather[0].description,
+                    humidity: data.main.humidity,
+                    wind_speed: data.wind.speed,
+                    icon: `http://openweathermap.org/img/w/${data.weather[0].icon}.png`
+                });
+            }
+            console.log("OWM Error:", data.message);
+        } catch (err) { console.log("OWM Fetch Error:", err); }
+    }
+
+    // 2. Fallback Open-Meteo
     try {
-        const url = `https://api.openweathermap.org/data/2.5/weather?q=${encodeURIComponent(city)}&appid=${key}&units=metric&lang=vi`;
-        const resp = await fetch(url);
-        const data = await resp.json();
-        if (data.cod !== 200) return res.json({ error: data.message });
+        const geoUrl = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=1&language=en&format=json`;
+        const geoRes = await fetch(geoUrl);
+        const geoData = await geoRes.json();
+        
+        if (!geoData.results || geoData.results.length === 0) {
+            return res.json({ error: `Không tìm thấy thành phố: ${city}` });
+        }
+        
+        const { latitude, longitude, name, country } = geoData.results[0];
+        const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m&timezone=auto`;
+        const weatherRes = await fetch(weatherUrl);
+        const weatherData = await weatherRes.json();
+        const current = weatherData.current;
+        
+        const weatherCodeMap = {
+            0: "Trời quang", 1: "Có mây", 2: "Nhiều mây", 3: "U ám", 45: "Sương mù", 
+            51: "Mưa phùn", 61: "Mưa nhỏ", 63: "Mưa vừa", 65: "Mưa to", 80: "Mưa rào", 95: "Dông bão"
+        };
+
         res.json({
-            location: `${data.name}, ${data.sys.country}`,
-            temperature: data.main.temp,
-            feels_like: data.main.feels_like,
-            description: data.weather[0].description,
-            humidity: data.main.humidity,
-            wind_speed: data.wind.speed,
-            icon: `http://openweathermap.org/img/w/${data.weather[0].icon}.png`
+            source: "Open-Meteo (Free)",
+            location: `${name}, ${country}`,
+            temperature: current.temperature_2m,
+            feels_like: current.apparent_temperature,
+            description: weatherCodeMap[current.weather_code] || "Không xác định",
+            humidity: current.relative_humidity_2m,
+            wind_speed: current.wind_speed_10m
         });
-    } catch (err) { res.status(500).json({ error: "Lỗi kết nối." }); }
+    } catch (err) { 
+        console.error("Weather Fallback Error:", err);
+        res.status(500).json({ error: "Lỗi kết nối dịch vụ thời tiết." }); 
+    }
 });
 
 app.get('/api/settings/theme', async (req, res) => {

@@ -216,7 +216,9 @@ export default function App() {
               const data = await res.json();
               setTimeout(() => setToolStatus(null), 1000);
               if (data.error) return `Lỗi: ${data.error}`;
-              return `Thời tiết tại ${data.location}:\n* Nhiệt độ: **${data.temperature}°C**\n* Tình trạng: **${data.description}**\n* Độ ẩm: ${data.humidity}%\n* Gió: ${data.wind_speed} m/s`;
+              
+              const src = data.source ? `(Nguồn: ${data.source})` : "";
+              return `Thời tiết tại ${data.location} ${src}:\n* **Nhiệt độ:** ${data.temperature}°C\n* **Tình trạng:** ${data.description}\n* **Cảm giác:** ${data.feels_like || data.temperature}°C\n* **Độ ẩm:** ${data.humidity}%\n* **Gió:** ${data.wind_speed} m/s`;
           } catch (e) { return "Lỗi kết nối thời tiết."; }
       }
 
@@ -229,7 +231,7 @@ export default function App() {
       const contents = historyPayload.map(msg => ({ role: msg.role === 'user' ? 'user' : 'model', parts: [{ text: msg.text }] }));
       const sysInstruction = forcedSystemPrompt ? forcedSystemPrompt : config.systemInstruction;
 
-      const res1 = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${config.geminiKey}`, {
+      const res1 = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${config.geminiKey}`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ contents, systemInstruction: { parts: [{ text: sysInstruction }] }, tools: GEMINI_TOOLS })
       });
@@ -241,7 +243,7 @@ export default function App() {
           const toolResult = await executeTool(fn.name, fn.args);
           const contentsWithFunction = [...contents, { role: 'model', parts: [{ functionCall: fn }] }, { role: 'function', parts: [{ functionResponse: { name: fn.name, response: { content: toolResult } } }] }];
           
-          const res2 = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${config.geminiKey}`, {
+          const res2 = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${config.geminiKey}`, {
               method: 'POST', headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ contents: contentsWithFunction, systemInstruction: { parts: [{ text: sysInstruction }] } }) 
           });
@@ -283,22 +285,23 @@ export default function App() {
     setIsLoading(true);
 
     let tempSystemPrompt = null;
-    
-    // --- LOGIC AUTO-TRIGGER (ISOLATION) ---
     const lowerInput = userText.toLowerCase();
+    const normInput = lowerInput.normalize("NFD").replace(/[\u0300-\u036f]/g, ""); // Bỏ dấu
 
     if (forcedTool) {
-        // 1. Manual Override
         tempSystemPrompt = `${config.systemInstruction}\n[SYSTEM]: BẮT BUỘC gọi tool '${forcedTool}' ngay. Bỏ qua ngữ cảnh cũ.`;
-    } else if (['màu', 'theme', 'nền', 'giao diện', 'đỏ', 'xanh', 'tím', 'vàng', 'hường'].some(k => lowerInput.includes(k))) {
-        // 2. Theme Isolation
+        if (forcedTool === 'get_weather') setToolStatus("🌤️ Đang kết nối vệ tinh...");
+        if (forcedTool === 'change_theme_color') setToolStatus("🎨 Đang chọn màu...");
+        if (forcedTool === 'search_memory') setToolStatus("🧠 Đang lục lọi ký ức...");
+    } else if (['màu', 'theme', 'nền', 'giao diện', 'mau', 'nen'].some(k => normInput.includes(k))) {
         tempSystemPrompt = `${config.systemInstruction}\n[SYSTEM]: Người dùng muốn đổi màu. Hãy gọi tool 'change_theme_color' NGAY LẬP TỨC.`;
-    } else if (['thời tiết', 'nhiệt độ', 'mưa', 'nắng', 'độ ẩm', 'gió', 'bão'].some(k => lowerInput.includes(k))) {
-        // 3. Weather Isolation
+        setToolStatus("🎨 Đang phân tích màu sắc...");
+    } else if (['thời tiết', 'nhiệt độ', 'mưa', 'nắng', 'thoi tiet', 'nhiet do'].some(k => normInput.includes(k))) {
         tempSystemPrompt = `${config.systemInstruction}\n[SYSTEM]: Người dùng muốn xem thời tiết. Hãy gọi tool 'get_weather' NGAY LẬP TỨC.`;
-    } else if (['nhớ', 'quên', 'lục lại', 'tìm lại', 'đã nói', 'ký ức'].some(k => lowerInput.includes(k))) {
-        // 4. Memory Isolation
+        setToolStatus("🌤️ Đang kết nối vệ tinh...");
+    } else if (['nhớ', 'quên', 'lục lại', 'tìm lại', 'đã nói', 'ký ức', 'ky uc'].some(k => normInput.includes(k))) {
         tempSystemPrompt = `${config.systemInstruction}\n[SYSTEM]: Người dùng muốn tìm ký ức. Hãy gọi tool 'search_memory' NGAY LẬP TỨC.`;
+        setToolStatus("🧠 Đang kết nối ký ức...");
     }
 
     try {
@@ -320,21 +323,21 @@ export default function App() {
 
   if (isConfiguring) return (
     <div className="min-h-screen flex items-center justify-center p-4 font-mono bg-[var(--app-bg)] transition-colors">
-        <div className="max-w-2xl w-full bg-[var(--component-bg)] text-[var(--text-color)] border-2 border-[var(--border-color)] shadow-hard-lg p-8 max-h-[90vh] overflow-y-auto rounded-none">
+        <div className="max-w-2xl w-full bg-[var(--component-bg)] text-[var(--text-color)] border-4 border-[var(--border-color)] shadow-hard-lg p-8 max-h-[90vh] overflow-y-auto rounded-none">
             <h1 className="text-3xl font-black mb-6 flex items-center gap-3 uppercase tracking-tighter"><Settings size={32}/> CẤU HÌNH BOT</h1>
             
             <div className="space-y-6">
-                <div className="border-2 border-[var(--border-color)] p-4 bg-yellow-200 text-black shadow-hard-sm">
+                <div className="border-4 border-[var(--border-color)] p-4 bg-yellow-200 text-black shadow-hard-sm">
                     <h3 className="font-bold flex items-center gap-2 mb-2 uppercase"><ScrollText size={20}/> Nhập Vai (System Prompt)</h3>
                     <textarea rows="3" value={config.systemInstruction} onChange={e => setConfig({...config, systemInstruction: e.target.value})} className="w-full border-2 border-black p-3 text-sm font-bold bg-white focus:outline-none focus:ring-2 ring-black"/>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="border-2 border-[var(--border-color)] p-4 bg-blue-200 text-black shadow-hard-sm">
+                    <div className="border-4 border-[var(--border-color)] p-4 bg-blue-200 text-black shadow-hard-sm">
                         <h3 className="font-bold flex items-center gap-2 mb-2 uppercase"><Sparkles size={20}/> Gemini</h3>
                         <input type="password" placeholder="Gemini Key..." value={config.geminiKey} onChange={e => setConfig({...config, geminiKey: e.target.value})} className="w-full border-2 border-black p-2 font-bold"/>
                     </div>
-                    <div className="border-2 border-[var(--border-color)] p-4 bg-green-200 text-black shadow-hard-sm">
+                    <div className="border-4 border-[var(--border-color)] p-4 bg-green-200 text-black shadow-hard-sm">
                         <h3 className="font-bold flex items-center gap-2 mb-2 uppercase"><Cpu size={20}/> OpenAI / Groq</h3>
                         <input type="text" placeholder="Base URL..." value={config.openaiBaseUrl} onChange={e => setConfig({...config, openaiBaseUrl: e.target.value})} className="w-full border-2 border-black p-2 mb-2 text-xs font-bold"/>
                         <input type="text" placeholder="Model Name..." value={config.openaiModel} onChange={e => setConfig({...config, openaiModel: e.target.value})} className="w-full border-2 border-black p-2 mb-2 text-xs font-bold"/>
@@ -342,21 +345,21 @@ export default function App() {
                     </div>
                 </div>
 
-                <div className="border-2 border-[var(--border-color)] p-4 bg-orange-200 text-black shadow-hard-sm">
+                <div className="border-4 border-[var(--border-color)] p-4 bg-orange-200 text-black shadow-hard-sm">
                     <h3 className="font-bold flex items-center gap-2 mb-2 uppercase"><Cloud size={20}/> Weather Key (OpenWeatherMap)</h3>
-                    <input type="password" placeholder="OpenWeatherMap API Key..." value={config.weatherKey} onChange={e => setConfig({...config, weatherKey: e.target.value})} className="w-full border-2 border-black p-2 font-bold"/>
+                    <input type="password" placeholder="Optional: API Key..." value={config.weatherKey} onChange={e => setConfig({...config, weatherKey: e.target.value})} className="w-full border-2 border-black p-2 font-bold"/>
                     <p className="text-xs mt-1">Cần key để xem thời tiết. Lấy tại openweathermap.org</p>
                 </div>
 
                 <div>
                     <label className="font-black block mb-2 uppercase">Model Mặc Định:</label>
-                    <select value={config.activeProvider} onChange={e => setConfig({...config, activeProvider: e.target.value})} className="w-full border-2 border-[var(--border-color)] p-3 font-bold bg-white text-black shadow-hard-sm focus:outline-none">
+                    <select value={config.activeProvider} onChange={e => setConfig({...config, activeProvider: e.target.value})} className="w-full border-4 border-[var(--border-color)] p-3 font-bold bg-white text-black shadow-hard-sm focus:outline-none">
                         <option value="gemini">Google Gemini</option>
                         <option value="openai">OpenAI Compatible</option>
                     </select>
                 </div>
 
-                <button onClick={() => saveConfig(config)} className="w-full bg-[var(--accent-color)] text-white font-black text-xl py-4 border-2 border-[var(--border-color)] shadow-hard hover:translate-y-1 hover:shadow-none transition-all uppercase">LƯU & BẮT ĐẦU</button>
+                <button onClick={() => saveConfig(config)} className="w-full bg-[var(--accent-color)] text-white font-black text-xl py-4 border-4 border-[var(--border-color)] shadow-hard hover:translate-y-1 hover:shadow-none transition-all uppercase">LƯU & BẮT ĐẦU</button>
             </div>
         </div>
     </div>
@@ -364,69 +367,45 @@ export default function App() {
 
   return (
     <div className="flex h-screen overflow-hidden font-mono bg-[var(--app-bg)] text-[var(--text-color)] transition-colors">
-      {/* Desktop: Always Visible Sidebar */}
-      <div className={`
-          fixed inset-y-0 left-0 z-40 
-          w-[260px] bg-[var(--sidebar-bg)] border-r-2 border-[var(--border-color)] 
-          flex flex-col transition-all duration-300 ease-in-out
-          ${showSidebar ? 'translate-x-0' : '-translate-x-full'}
-          md:relative md:translate-x-0 
-          ${!showSidebar && 'md:w-0 md:overflow-hidden md:border-r-0'} 
-          `}>
-          
-          {/* Sidebar Header */}
-          <div className="h-16 border-b-2 border-[var(--border-color)] flex justify-between items-center bg-[var(--accent-color)] text-white px-4 min-w-[260px]">
-             <h2 className="font-black text-xl flex gap-2 uppercase tracking-tight"><Sparkles/> {config.activeProvider.toUpperCase()}</h2>
-             <button onClick={() => setShowSidebar(false)} className="md:hidden"><X/></button>
-          </div>
-
-          {/* New Chat Button */}
-          <div className="p-3 min-w-[260px]">
-            <button onClick={createNewSession} className="w-full bg-[var(--component-bg)] text-[var(--text-color)] border-2 border-[var(--border-color)] p-3 rounded-lg font-bold shadow-hard hover:shadow-none hover:translate-y-1 flex items-center justify-center gap-2 uppercase transition-all">
-              <Plus/> New Chat
-            </button>
-          </div>
-
-          {/* Chat List */}
-          <div className="flex-1 overflow-y-auto px-3 space-y-2 min-w-[260px]">
-              {sessions.map(s => (
-                  <div key={s.id} onClick={() => { setCurrentSessionId(s.id); if(window.innerWidth < 768) setShowSidebar(false); }} className={`p-3 border-2 border-[var(--border-color)] rounded-lg cursor-pointer truncate transition-all ${currentSessionId === s.id ? 'bg-[var(--accent-color)] text-white shadow-hard-sm' : 'bg-[var(--component-bg)] hover:bg-gray-100'}`}>
-                      <div className="flex justify-between items-center">
-                          {editingSessionId === s.id ? (
-                              <input autoFocus value={renameText} onChange={e => setRenameText(e.target.value)} onBlur={() => saveRename(s.id)} onKeyDown={e => e.key === 'Enter' && saveRename(s.id)} onClick={e => e.stopPropagation()} className="w-full bg-white text-black border border-black p-1 text-xs font-bold rounded" />
-                          ) : (
-                              <div className="flex items-center gap-2 w-full overflow-hidden">
-                                  <span className="truncate font-bold text-sm flex-1">{s.title}</span>
-                                  <button onClick={(e) => startRenaming(e, s)} className="opacity-0 group-hover:opacity-100 hover:text-blue-500 transition-opacity"><Edit2 size={12}/></button>
-                              </div>
-                          )}
-                          <button onClick={(e) => deleteSession(e, s.id)} className="hover:text-red-500 ml-1"><Trash2 size={16}/></button>
-                      </div>
-                  </div>
-              ))}
-          </div>
-          
-          {/* Footer Actions */}
-          <div className="p-3 border-t-2 border-[var(--border-color)] bg-[var(--component-bg)] grid grid-cols-2 gap-2 min-w-[260px]">
-             <button onClick={handleExportToon} className="flex items-center justify-center gap-1 text-xs font-black border-2 border-[var(--border-color)] p-2 rounded bg-yellow-300 text-black hover:bg-yellow-400 shadow-hard-sm hover:shadow-none transition-all uppercase"><Download size={14} /> SAVE</button>
+      <div className={`fixed inset-y-0 left-0 z-20 w-72 bg-[var(--sidebar-bg)] border-r-4 border-[var(--border-color)] flex flex-col transform transition-transform duration-300 ${showSidebar ? 'translate-x-0' : '-translate-x-full'} md:relative md:translate-x-0`}>
+        <div className="p-4 border-b-4 border-[var(--border-color)] flex justify-between items-center bg-[var(--accent-color)] text-white">
+           <h2 className="font-black text-xl flex gap-2 uppercase tracking-tight"><Sparkles/> {config.activeProvider.toUpperCase()}</h2>
+           <button onClick={() => setShowSidebar(false)} className="md:hidden"><X/></button>
+        </div>
+        <div className="p-4"><button onClick={createNewSession} className="w-full bg-[var(--component-bg)] text-[var(--text-color)] border-4 border-[var(--border-color)] p-3 font-bold shadow-hard hover:shadow-none hover:translate-y-1 flex items-center justify-center gap-2 uppercase"><Plus/> New Chat</button></div>
+        <div className="flex-1 overflow-y-auto p-4 space-y-3">
+            {sessions.map(s => (
+                <div key={s.id} onClick={() => { setCurrentSessionId(s.id); if(window.innerWidth < 768) setShowSidebar(false); }} className={`p-3 border-4 border-[var(--border-color)] cursor-pointer truncate transition-all ${currentSessionId === s.id ? 'bg-[var(--accent-color)] text-white shadow-hard' : 'bg-[var(--component-bg)] hover:bg-gray-100'}`}>
+                    <div className="flex justify-between items-center">
+                        {editingSessionId === s.id ? (
+                            <input autoFocus value={renameText} onChange={e => setRenameText(e.target.value)} onBlur={() => saveRename(s.id)} onKeyDown={e => e.key === 'Enter' && saveRename(s.id)} onClick={e => e.stopPropagation()} className="w-full bg-white text-black border border-black p-1 text-xs font-bold" />
+                        ) : (
+                            <div className="flex items-center gap-2 w-full overflow-hidden">
+                                <span className="truncate font-bold text-sm flex-1">{s.title}</span>
+                                <button onClick={(e) => startRenaming(e, s)} className="opacity-0 group-hover:opacity-100 hover:text-blue-500 transition-opacity"><Edit2 size={12}/></button>
+                            </div>
+                        )}
+                        <button onClick={(e) => deleteSession(e, s.id)} className="hover:text-red-500 ml-1"><Trash2 size={16}/></button>
+                    </div>
+                </div>
+            ))}
+        </div>
+        
+        <div className="p-4 border-t-4 border-[var(--border-color)] bg-[var(--component-bg)] grid grid-cols-2 gap-2">
+             <button onClick={handleExportToon} className="flex items-center justify-center gap-1 text-xs font-black border-4 border-[var(--border-color)] p-2 bg-yellow-300 text-black hover:bg-yellow-400 shadow-hard hover:shadow-none transition-all uppercase"><Download size={14} /> SAVE</button>
              <input type="file" ref={fileInputRef} onChange={handleImportToon} className="hidden" accept=".toon" />
-             <button onClick={() => fileInputRef.current.click()} className="flex items-center justify-center gap-1 text-xs font-black border-2 border-[var(--border-color)] p-2 rounded bg-green-300 text-black hover:bg-green-400 shadow-hard-sm hover:shadow-none transition-all uppercase"><Upload size={14} /> LOAD</button>
-          </div>
+             <button onClick={() => fileInputRef.current.click()} className="flex items-center justify-center gap-1 text-xs font-black border-4 border-[var(--border-color)] p-2 bg-green-300 text-black hover:bg-green-400 shadow-hard hover:shadow-none transition-all uppercase"><Upload size={14} /> LOAD</button>
+        </div>
       </div>
 
-      {/* Mobile Backdrop */}
-      {showSidebar && (
-        <div className="fixed inset-0 bg-black/50 z-30 md:hidden" onClick={() => setShowSidebar(false)} />
-      )}
-
       <div className="flex-1 flex flex-col h-full relative">
-        <header className="bg-[var(--component-bg)] border-b-2 border-[var(--border-color)] h-16 flex justify-between items-center px-4 shadow-sm z-10">
-            <div className="flex items-center gap-4 overflow-hidden">
-                <button onClick={() => setShowSidebar(!showSidebar)}><Menu/></button>
-                <h1 className="font-black text-xl md:text-2xl truncate uppercase tracking-tight">{sessions.find(s => s.id === currentSessionId)?.title}</h1>
+        <header className="bg-[var(--component-bg)] border-b-4 border-[var(--border-color)] p-4 flex justify-between items-center shadow-sm z-10">
+            <div className="flex items-center gap-4">
+                <button onClick={() => setShowSidebar(!showSidebar)} className="md:hidden"><Menu/></button>
+                <h1 className="font-black text-2xl truncate uppercase tracking-tight">{sessions.find(s => s.id === currentSessionId)?.title}</h1>
             </div>
-            <div className="flex items-center gap-3 flex-shrink-0">
-                <button onClick={() => setUseFullContext(!useFullContext)} className={`hidden sm:flex items-center gap-2 px-3 py-1.5 text-xs font-black border-2 border-[var(--border-color)] rounded shadow-hard-sm hover:shadow-none transition-all uppercase ${useFullContext ? 'bg-pink-400 text-black' : 'bg-emerald-400 text-black'}`}>
+            <div className="flex items-center gap-3">
+                <button onClick={() => setUseFullContext(!useFullContext)} className={`hidden sm:flex items-center gap-2 px-3 py-1.5 text-xs font-black border-4 border-[var(--border-color)] shadow-hard hover:shadow-none transition-all uppercase ${useFullContext ? 'bg-pink-400 text-black' : 'bg-emerald-400 text-black'}`}>
                     {useFullContext ? <Brain size={14} /> : <Zap size={14} />} <span>{useFullContext ? 'FULL' : 'ECO'}</span>
                 </button>
 
@@ -438,7 +417,7 @@ export default function App() {
         <div className="flex-1 overflow-y-auto p-4 space-y-6">
             {currentSessionMessages.map((msg, idx) => (
                 <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                    <div className={`max-w-[85%] md:max-w-[70%] p-4 border-2 border-[var(--border-color)] rounded-lg text-base font-medium shadow-hard ${msg.role === 'user' ? 'bg-[var(--accent-color)] text-white' : 'bg-[var(--component-bg)]'}`}>
+                    <div className={`max-w-[85%] md:max-w-[70%] p-4 border-4 border-[var(--border-color)] text-base font-medium whitespace-pre-wrap shadow-hard ${msg.role === 'user' ? 'bg-[var(--accent-color)] text-white rounded-none' : 'bg-[var(--component-bg)] rounded-none'}`}>
                         <div className="font-black text-xs mb-2 opacity-80 flex items-center gap-1 uppercase tracking-widest border-b-2 border-current pb-1 w-fit">
                             {msg.role === 'user' ? <User size={12}/> : <Bot size={12}/>} {msg.role}
                         </div>
@@ -446,25 +425,25 @@ export default function App() {
                     </div>
                 </div>
             ))}
-            {toolStatus && <div className="flex justify-start"><div className="bg-yellow-300 border-2 border-black rounded p-3 text-sm font-black flex gap-2 animate-bounce text-black shadow-hard"><Wrench size={18}/> {toolStatus}</div></div>}
-            {isLoading && !toolStatus && <div className="flex justify-start"><div className="bg-[var(--component-bg)] border-2 border-[var(--border-color)] rounded-lg p-4 shadow-hard flex gap-2"><div className="w-3 h-3 bg-[var(--text-color)] animate-bounce"></div><div className="w-3 h-3 bg-[var(--text-color)] animate-bounce delay-75"></div><div className="w-3 h-3 bg-[var(--text-color)] animate-bounce delay-150"></div></div></div>}
+            {toolStatus && <div className="flex justify-start"><div className="bg-yellow-300 border-4 border-black p-3 text-sm font-black flex gap-2 animate-bounce text-black shadow-hard"><Wrench size={18}/> {toolStatus}</div></div>}
+            {isLoading && !toolStatus && <div className="flex justify-start"><div className="bg-[var(--component-bg)] border-4 border-[var(--border-color)] p-4 shadow-hard flex gap-2"><div className="w-3 h-3 bg-[var(--text-color)] animate-bounce"></div><div className="w-3 h-3 bg-[var(--text-color)] animate-bounce delay-75"></div><div className="w-3 h-3 bg-[var(--text-color)] animate-bounce delay-150"></div></div></div>}
             <div ref={messagesEndRef} />
         </div>
 
-        <div className="bg-[var(--component-bg)] border-t-2 border-[var(--border-color)] p-6">
+        <div className="bg-[var(--component-bg)] border-t-4 border-[var(--border-color)] p-6">
             <div className="max-w-4xl mx-auto flex gap-3 relative">
                 <div className="relative flex items-center">
-                    <button onClick={() => setForcedTool(forcedTool ? null : 'auto')} className={`p-3 border-2 border-[var(--border-color)] rounded-lg shadow-hard hover:shadow-none transition-all ${forcedTool ? 'bg-red-500 text-white animate-pulse' : 'bg-gray-200 text-black'}`} title="Ép dùng Tool (Manual Override)"><Wrench size={24}/></button>
+                    <button onClick={() => setForcedTool(forcedTool ? null : 'auto')} className={`p-3 border-4 border-[var(--border-color)] shadow-hard hover:shadow-none transition-all ${forcedTool ? 'bg-red-500 text-white animate-pulse' : 'bg-gray-200 text-black'}`} title="Ép dùng Tool (Manual Override)"><Wrench size={24}/></button>
                     {forcedTool === 'auto' && (
-                        <div className="absolute bottom-full left-0 mb-2 w-48 bg-white border-2 border-black rounded-lg shadow-hard flex flex-col z-50 overflow-hidden">
+                        <div className="absolute bottom-full left-0 mb-2 w-48 bg-white border-4 border-black shadow-hard flex flex-col z-50 overflow-hidden">
                             <button onClick={() => setForcedTool('search_memory')} className="p-3 hover:bg-gray-200 text-left text-xs font-bold border-b border-black">🔍 Tìm Ký Ức</button>
                             <button onClick={() => setForcedTool('change_theme_color')} className="p-3 hover:bg-gray-200 text-left text-xs font-bold border-b border-black">🎨 Đổi Màu</button>
                             <button onClick={() => setForcedTool('get_weather')} className="p-3 hover:bg-gray-200 text-left text-xs font-bold">🌤️ Thời Tiết</button>
                         </div>
                     )}
                 </div>
-                <input type="text" value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()} placeholder={forcedTool && forcedTool !== 'auto' ? `[CHẾ ĐỘ ÉP TOOL]: ${forcedTool}...` : "Nhập tin nhắn..."} disabled={isLoading} className="flex-1 border-2 border-[var(--border-color)] rounded-lg p-4 shadow-hard text-lg font-bold bg-[var(--app-bg)] focus:outline-none focus:translate-y-1 focus:shadow-none transition-all placeholder-[var(--text-color)]/50"/>
-                <button onClick={handleSendMessage} disabled={isLoading || !input.trim()} className="bg-[var(--accent-color)] text-white border-2 border-[var(--border-color)] rounded-lg px-8 shadow-hard hover:shadow-none hover:translate-y-1 font-black uppercase tracking-widest"><Send size={24}/></button>
+                <input type="text" value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()} placeholder={forcedTool && forcedTool !== 'auto' ? `[CHẾ ĐỘ ÉP TOOL]: ${forcedTool}...` : "Nhập tin nhắn..."} disabled={isLoading} className="flex-1 border-4 border-[var(--border-color)] p-4 shadow-hard text-lg font-bold bg-[var(--app-bg)] focus:outline-none focus:translate-y-1 focus:shadow-none transition-all placeholder-[var(--text-color)]/50"/>
+                <button onClick={handleSendMessage} disabled={isLoading || !input.trim()} className="bg-[var(--accent-color)] text-white border-4 border-[var(--border-color)] px-8 shadow-hard hover:shadow-none hover:translate-y-1 font-black uppercase tracking-widest"><Send size={24}/></button>
             </div>
         </div>
       </div>
