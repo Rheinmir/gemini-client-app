@@ -10,7 +10,7 @@ const DEFAULT_SYSTEM_INSTRUCTION = `Bạn là Gemin-Toon, một trợ lý AI th�
 KỸ NĂNG:
 1. search_memory: Tìm kiếm thông tin cũ.
 2. change_theme_color: Đổi màu giao diện.
-3. get_weather: Xem thời tiết.
+3. get_weather: Xem thời tiết (Cần OpenWeatherMap Key).
 
 NHIỆM VỤ: Trả lời ngắn gọn, hài hước, hữu ích. Dùng Markdown (in đậm, list) để trình bày đẹp.`;
 
@@ -433,14 +433,15 @@ export default function App() {
                   </div>
               ))}
           </div>
-          <div className="p-3 border-t-2 border-[var(--border-color)] bg-[var(--component-bg)] grid grid-cols-2 gap-2 min-w-[260px]">
-             <button onClick={handleExportToon} className="flex items-center justify-center gap-1 text-xs font-black border-2 border-[var(--border-color)] p-2 rounded bg-yellow-300 text-black hover:bg-yellow-400 shadow-hard-sm hover:shadow-none transition-all uppercase"><Download size={14} /> SAVE</button>
+          <div className="p-3 border-t-4 border-[var(--border-color)] bg-[var(--component-bg)] grid grid-cols-2 gap-2 min-w-[260px]">
+             <button onClick={handleExportToon} className="flex items-center justify-center gap-1 text-xs font-black border-4 border-[var(--border-color)] p-2 rounded bg-yellow-300 text-black hover:bg-yellow-400 shadow-hard-sm hover:shadow-none transition-all uppercase"><Download size={14} /> SAVE</button>
              <input type="file" ref={fileInputRef} onChange={handleImportToon} className="hidden" accept=".toon" />
-             <button onClick={() => fileInputRef.current.click()} className="flex items-center justify-center gap-1 text-xs font-black border-2 border-[var(--border-color)] p-2 rounded bg-green-300 text-black hover:bg-green-400 shadow-hard-sm hover:shadow-none transition-all uppercase"><Upload size={14} /> LOAD</button>
+             <button onClick={() => fileInputRef.current.click()} className="flex items-center justify-center gap-1 text-xs font-black border-4 border-[var(--border-color)] p-2 rounded bg-green-300 text-black hover:bg-green-400 shadow-hard-sm hover:shadow-none transition-all uppercase"><Upload size={14} /> LOAD</button>
           </div>
       </div>
 
       <div className="flex-1 flex flex-col h-full relative">
+        {/* Header - Z-10 */}
         <header className="bg-[var(--component-bg)] border-b-4 border-[var(--border-color)] h-16 flex justify-between items-center px-4 shadow-sm z-10">
             <div className="flex items-center gap-4 overflow-hidden">
                 <button onClick={() => setShowSidebar(!showSidebar)}><Menu/></button>
@@ -456,6 +457,7 @@ export default function App() {
             </div>
         </header>
 
+        {/* Content Area */}
         <div className="flex-1 overflow-y-auto p-4 space-y-6">
             {currentSessionMessages.map((msg, idx) => (
                 <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
@@ -472,20 +474,21 @@ export default function App() {
             <div ref={messagesEndRef} />
         </div>
 
-        <div className="bg-[var(--component-bg)] border-t-2 border-[var(--border-color)] p-6">
-            <div className="max-w-4xl mx-auto flex gap-3 relative z-40">
+        {/* Footer Input - Z-40 (Phải nằm dưới Sidebar Z-50, nhưng trên Backdrop Z-30) */}
+        <div className="bg-[var(--component-bg)] border-t-4 border-[var(--border-color)] p-6 z-40">
+            <div className="max-w-4xl mx-auto flex gap-3 relative">
                 <div className="relative flex items-center z-50">
-                    <button onClick={() => setForcedTool(forcedTool ? null : 'auto')} className={`p-3 border-2 border-[var(--border-color)] rounded-lg shadow-hard hover:shadow-none transition-all ${forcedTool ? 'bg-red-500 text-white animate-pulse' : 'bg-gray-200 text-black'}`} title="Ép dùng Tool"><Wrench size={24}/></button>
+                    <button onClick={() => setForcedTool(forcedTool ? null : 'auto')} className={`p-3 border-4 border-[var(--border-color)] shadow-hard hover:shadow-none transition-all ${forcedTool ? 'bg-red-500 text-white animate-pulse' : 'bg-gray-200 text-black'}`} title="Ép dùng Tool"><Wrench size={24}/></button>
                     {forcedTool === 'auto' && (
-                        <div className="absolute bottom-full left-0 mb-2 w-48 bg-white border-2 border-black rounded-lg shadow-hard flex flex-col z-50 overflow-hidden">
+                        <div className="absolute bottom-full left-0 mb-2 w-48 bg-white border-4 border-black shadow-hard flex flex-col z-50 overflow-hidden">
                             <button onClick={() => setForcedTool('search_memory')} className="p-3 hover:bg-gray-200 text-left text-xs font-bold border-b border-black">🔍 Tìm Ký Ức</button>
                             <button onClick={() => setForcedTool('change_theme_color')} className="p-3 hover:bg-gray-200 text-left text-xs font-bold border-b border-black">🎨 Đổi Màu</button>
                             <button onClick={() => setForcedTool('get_weather')} className="p-3 hover:bg-gray-200 text-left text-xs font-bold">🌤️ Thời Tiết</button>
                         </div>
                     )}
                 </div>
-                <input type="text" value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()} placeholder={forcedTool && forcedTool !== 'auto' ? `[CHẾ ĐỘ ÉP TOOL]: ${forcedTool}...` : "Nhập tin nhắn..."} disabled={isLoading} className="flex-1 border-2 border-[var(--border-color)] rounded-lg p-4 shadow-hard text-lg font-bold bg-[var(--app-bg)] focus:outline-none focus:translate-y-1 focus:shadow-none transition-all placeholder-[var(--text-color)]/50"/>
-                <button onClick={handleSendMessage} disabled={isLoading || !input.trim()} className="bg-[var(--accent-color)] text-white border-2 border-[var(--border-color)] rounded-lg px-8 shadow-hard hover:shadow-none hover:translate-y-1 font-black uppercase tracking-widest"><Send size={24}/></button>
+                <input type="text" value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()} placeholder={forcedTool && forcedTool !== 'auto' ? `[CHẾ ĐỘ ÉP TOOL]: ${forcedTool}...` : "Nhập tin nhắn..."} disabled={isLoading} className="flex-1 border-4 border-[var(--border-color)] p-4 shadow-hard text-lg font-bold bg-[var(--app-bg)] focus:outline-none focus:translate-y-1 focus:shadow-none transition-all placeholder-[var(--text-color)]/50"/>
+                <button onClick={handleSendMessage} disabled={isLoading || !input.trim()} className="bg-[var(--accent-color)] text-white border-4 border-[var(--border-color)] px-8 shadow-hard hover:shadow-none hover:translate-y-1 font-black uppercase tracking-widest"><Send size={24}/></button>
             </div>
         </div>
       </div>
