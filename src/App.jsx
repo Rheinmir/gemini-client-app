@@ -287,7 +287,7 @@ export default function App() {
     
     const lowerInput = userText.toLowerCase();
     if (['màu', 'theme', 'nền', 'giao diện'].some(k => lowerInput.includes(k))) {
-        tempSystemPrompt += `\n[CHẾ ĐỘ ƯU TIÊN]: Phát hiện ý định đổi màu. BẮT BUỘC gọi tool 'change_theme_color' ngay lập tức.`;
+        tempSystemPrompt += `\n[CHẾ ĐỘ ƯU TIÊN]: Phát hiện ý định đổi màu. Bỏ qua context trước đó. BẮT BUỘC gọi tool 'change_theme_color' theo màu vừa nhận được ngay lập tức.`;
     }
 
     try {
