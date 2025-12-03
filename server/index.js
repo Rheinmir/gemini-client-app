@@ -35,17 +35,20 @@ initDb();
 // --- API ROUTES ---
 app.get('/api/weather', async (req, res) => {
     const { city, key } = req.query;
-    if (!city) return res.status(400).json({ error: "Missing city" });
+    let errorLog = []; // Ghi lại quá trình lỗi
 
-    // 1. OWM (Ưu tiên)
+    if (!city) return res.status(400).json({ error: "Thiếu tên thành phố" });
+
+    // 1. Thử OpenWeatherMap (Nếu có key)
     if (key && key !== 'null' && key !== '') {
         try {
+            console.log(`Trying OWM for ${city}...`);
             const url = `https://api.openweathermap.org/data/2.5/weather?q=${encodeURIComponent(city)}&appid=${key}&units=metric&lang=vi`;
             const resp = await fetch(url);
             const data = await resp.json();
             if (data.cod === 200) {
                 return res.json({
-                    source: "OpenWeatherMap",
+                    source: "OpenWeatherMap (Chính xác)",
                     location: `${data.name}, ${data.sys.country}`,
                     temperature: data.main.temp,
                     feels_like: data.main.feels_like,
@@ -55,43 +58,56 @@ app.get('/api/weather', async (req, res) => {
                     icon: `http://openweathermap.org/img/w/${data.weather[0].icon}.png`
                 });
             }
-            console.log("OWM Error:", data.message);
-        } catch (err) { console.log("OWM Fetch Error:", err); }
+            errorLog.push(`OWM Error: ${data.message}`);
+        } catch (err) { errorLog.push(`OWM Net Error: ${err.message}`); }
+    } else {
+        errorLog.push("OWM Skipped (No Key)");
     }
 
-    // 2. Fallback Open-Meteo
+    // 2. Fallback Open-Meteo (Miễn phí)
     try {
+        console.log(`Trying Open-Meteo for ${city}...`);
+        // Geocoding
         const geoUrl = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=1&language=en&format=json`;
         const geoRes = await fetch(geoUrl);
         const geoData = await geoRes.json();
         
         if (!geoData.results || geoData.results.length === 0) {
-            return res.json({ error: `Không tìm thấy thành phố: ${city}` });
+            errorLog.push(`Geocoding failed: Không tìm thấy tọa độ cho ${city}`);
+            throw new Error("City not found");
         }
         
         const { latitude, longitude, name, country } = geoData.results[0];
+        
+        // Weather
         const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m&timezone=auto`;
         const weatherRes = await fetch(weatherUrl);
         const weatherData = await weatherRes.json();
         const current = weatherData.current;
         
+        // WMO Codes
         const weatherCodeMap = {
             0: "Trời quang", 1: "Có mây", 2: "Nhiều mây", 3: "U ám", 45: "Sương mù", 
-            51: "Mưa phùn", 61: "Mưa nhỏ", 63: "Mưa vừa", 65: "Mưa to", 80: "Mưa rào", 95: "Dông bão"
+            51: "Mưa phùn", 61: "Mưa nhỏ", 63: "Mưa vừa", 65: "Mưa to", 
+            80: "Mưa rào", 95: "Dông bão", 96: "Mưa đá"
         };
 
         res.json({
-            source: "Open-Meteo (Free)",
+            source: "Open-Meteo (Free/Fallback)",
             location: `${name}, ${country}`,
             temperature: current.temperature_2m,
             feels_like: current.apparent_temperature,
-            description: weatherCodeMap[current.weather_code] || "Không xác định",
+            description: weatherCodeMap[current.weather_code] || `Mã thời tiết: ${current.weather_code}`,
             humidity: current.relative_humidity_2m,
             wind_speed: current.wind_speed_10m
         });
     } catch (err) { 
-        console.error("Weather Fallback Error:", err);
-        res.status(500).json({ error: "Lỗi kết nối dịch vụ thời tiết." }); 
+        errorLog.push(`Open-Meteo Error: ${err.message}`);
+        // Trả về toàn bộ log lỗi để client biết đường debug
+        res.status(500).json({ 
+            error: "Không thể lấy dữ liệu thời tiết từ cả 2 nguồn.",
+            details: errorLog.join(" | ")
+        }); 
     }
 });
 
