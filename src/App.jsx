@@ -394,7 +394,7 @@ export default function App() {
     <div className="flex h-screen overflow-hidden font-mono bg-[var(--app-bg)] text-[var(--text-color)] transition-colors">
       {/* Mobile Backdrop */}
       {showSidebar && (
-        <div className="fixed inset-0 bg-black/50 z-40 md:hidden" onClick={() => setShowSidebar(false)} />
+        <div className="fixed inset-0 bg-black/50 z-50 md:hidden" onClick={() => setShowSidebar(false)} />
       )}
       
       {/* Sidebar fixed + collapsed logic */}
@@ -475,7 +475,7 @@ export default function App() {
         </div>
 
         {/* Footer Input - Z-40 (Phải nằm dưới Sidebar Z-50, nhưng trên Backdrop Z-30) */}
-        <div className="bg-[var(--component-bg)] border-t-4 border-[var(--border-color)] p-6 z-40">
+        <div className="bg-[var(--component-bg)] border-t-4 border-[var(--border-color)] p-6 z-10">
             <div className="max-w-4xl mx-auto flex gap-3 relative">
                 <div className="relative flex items-center z-50">
                     <button onClick={() => setForcedTool(forcedTool ? null : 'auto')} className={`p-3 border-4 border-[var(--border-color)] shadow-hard hover:shadow-none transition-all ${forcedTool ? 'bg-red-500 text-white animate-pulse' : 'bg-gray-200 text-black'}`} title="Ép dùng Tool"><Wrench size={24}/></button>
