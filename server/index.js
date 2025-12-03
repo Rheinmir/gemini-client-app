@@ -89,6 +89,10 @@ app.post('/api/sessions', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+<<<<<<< HEAD
+=======
+// NEW: PATCH Title only
+>>>>>>> bc473fc8f9d840a5ba5bf8437da3d278dceadadd
 app.patch('/api/sessions/:id/title', async (req, res) => {
     const { title } = req.body;
     try {
