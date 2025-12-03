@@ -35,13 +35,13 @@ initDb();
 // --- API ROUTES ---
 app.get('/api/weather', async (req, res) => {
     const { city, key } = req.query;
-    let debugLogs = [];
+    let debugLogs = []; // Ghi lại hành trình debug
 
     if (!city) return res.status(400).json({ error: "Thiếu tên thành phố" });
 
     debugLogs.push(`Request City: ${city}`);
 
-    // 1. OpenWeatherMap (nếu có key)
+    // 1. Thử OpenWeatherMap (Nếu có key)
     if (key && key !== 'null' && key !== '') {
         debugLogs.push("Attempting OpenWeatherMap...");
         try {
@@ -64,14 +64,12 @@ app.get('/api/weather', async (req, res) => {
                 });
             }
             debugLogs.push(`OWM Failed. Code: ${data.cod}, Message: ${data.message}`);
-        } catch (err) { 
-            debugLogs.push(`OWM Network Error: ${err.message}`); 
-        }
+        } catch (err) { console.log("OWM Fetch Error:", err); }
     } else {
         debugLogs.push("OWM Skipped: No API Key provided.");
     }
 
-    // 2. Open-Meteo fallback
+    // 2. Fallback Open-Meteo (Miễn phí)
     debugLogs.push("Attempting Open-Meteo (Fallback)...");
     try {
         const geoUrl = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=1&language=en&format=json`;

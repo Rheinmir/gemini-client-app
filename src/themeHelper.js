@@ -6,7 +6,7 @@ const COLOR_MAP = {
 export const generateTheme = (inputColor) => {
     if (!inputColor) return DEFAULT_THEME;
     let colorKey = String(inputColor).toLowerCase().trim();
-    if (['default', 'reset', 'mặc định', 'bình thường'].includes(colorKey)) return DEFAULT_THEME;
+    if (['default', 'reset', 'mặc định'].includes(colorKey)) return DEFAULT_THEME;
     if (colorKey === 'matrix') return { appBg: '#000000', sidebarBg: '#001100', componentBg: '#002200', accentColor: '#00ff00', textColor: '#00ff00', borderColor: '#00ff00', shadowColor: '#004400' };
     const vietKeys = Object.keys(COLOR_MAP).sort((a, b) => b.length - a.length);
     for (const key of vietKeys) { if (colorKey.includes(key)) { colorKey = COLOR_MAP[key]; break; } }
