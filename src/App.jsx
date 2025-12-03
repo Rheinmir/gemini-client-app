@@ -6,13 +6,13 @@ import { generateTheme } from './themeHelper';
 
 const generateId = () => Math.random().toString(36).substr(2, 9);
 
-const DEFAULT_SYSTEM_INSTRUCTION = `Bạn là Gemin-Toon, một trợ lý AI thông minh.
-KỸ NĂNG:
-1. search_memory: Tìm kiếm thông tin cũ.
-2. change_theme_color: Đổi màu giao diện.
-3. get_weather: Xem thời tiết.
+// Prompt nghiêm ngặt về báo lỗi
+const DEFAULT_SYSTEM_INSTRUCTION = `Bạn là Gemin-Toon.
+QUY TẮC TOOL:
+1. Nếu tool 'get_weather' trả về lỗi hoặc thông tin debug, hãy BÁO CÁO NGUYÊN VĂN LỖI đó cho người dùng (Ví dụ: "Lỗi API: Key không hợp lệ"). ĐỪNG BỊA RA THỜI TIẾT.
+2. Nếu tool trả về thành công, hãy format Markdown đẹp.
 
-NHIỆM VỤ: Trả lời ngắn gọn, hài hước, hữu ích. Dùng Markdown (in đậm, list) để trình bày đẹp.`;
+DANH SÁCH TOOL: search_memory, change_theme_color, get_weather.`;
 
 export default function App() {
   const [config, setConfig] = useState({
@@ -194,7 +194,7 @@ export default function App() {
               const res = await fetch(`/api/search?q=${encodeURIComponent(args.keyword)}`);
               const data = await res.json();
               setTimeout(() => setToolStatus(null), 1000);
-              if (data.length === 0) return "Không tìm thấy.";
+              if (data.length === 0) return "Không tìm thấy thông tin nào.";
               return JSON.stringify(data);
           } catch (e) { return "Lỗi DB."; }
       } 
@@ -216,11 +216,14 @@ export default function App() {
               const data = await res.json();
               setTimeout(() => setToolStatus(null), 1000);
               
-              if (data.error) return `Lỗi: ${data.error} (Details: ${data.details || ''})`;
+              // QUAN TRỌNG: Trả về lỗi nguyên văn cho Bot đọc
+              if (data.error) {
+                  return `⚠️ HỆ THỐNG BÁO LỖI: ${data.error}. (Chi tiết: ${JSON.stringify(data.details)})`;
+              }
               
               const src = data.source ? `[Nguồn: ${data.source}]` : "";
-              return `Thời tiết tại **${data.location}** ${src}:\n* **Nhiệt độ:** ${data.temperature}°C\n* **Tình trạng:** ${data.description}\n* **Cảm giác:** ${data.feels_like || data.temperature}°C\n* **Độ ẩm:** ${data.humidity}%\n* **Gió:** ${data.wind_speed} km/h`;
-          } catch (e) { return "Lỗi kết nối thời tiết."; }
+              return `Thời tiết tại ${data.location} ${src}:\n* **Nhiệt độ:** ${data.temperature}°C\n* **Tình trạng:** ${data.description}\n* **Cảm giác:** ${data.feels_like || data.temperature}°C\n* **Độ ẩm:** ${data.humidity}%\n* **Gió:** ${data.wind_speed} m/s`;
+          } catch (e) { return `⚠️ Lỗi mạng nghiêm trọng: ${e.message}`; }
       }
 
       return "Tool không tồn tại.";
@@ -286,7 +289,6 @@ export default function App() {
     setIsLoading(true);
 
     let tempSystemPrompt = null;
-    
     const lowerInput = userText.toLowerCase();
     const normInput = lowerInput.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
@@ -349,7 +351,7 @@ export default function App() {
 
                 <div className="border-4 border-[var(--border-color)] p-4 bg-orange-200 text-black shadow-hard-sm">
                     <h3 className="font-bold flex items-center gap-2 mb-2 uppercase"><Cloud size={20}/> Weather Key (OpenWeatherMap)</h3>
-                    <input type="password" placeholder="OpenWeatherMap API Key..." value={config.weatherKey} onChange={e => setConfig({...config, weatherKey: e.target.value})} className="w-full border-2 border-black p-2 font-bold"/>
+                    <input type="password" placeholder="Optional: API Key..." value={config.weatherKey} onChange={e => setConfig({...config, weatherKey: e.target.value})} className="w-full border-2 border-black p-2 font-bold"/>
                     <p className="text-xs mt-1">Cần key để xem thời tiết. Lấy tại openweathermap.org</p>
                 </div>
 
@@ -379,15 +381,8 @@ export default function App() {
             {sessions.map(s => (
                 <div key={s.id} onClick={() => { setCurrentSessionId(s.id); if(window.innerWidth < 768) setShowSidebar(false); }} className={`p-3 border-4 border-[var(--border-color)] cursor-pointer truncate transition-all ${currentSessionId === s.id ? 'bg-[var(--accent-color)] text-white shadow-hard' : 'bg-[var(--component-bg)] hover:bg-gray-100'}`}>
                     <div className="flex justify-between items-center">
-                        {editingSessionId === s.id ? (
-                            <input autoFocus value={renameText} onChange={e => setRenameText(e.target.value)} onBlur={() => saveRename(s.id)} onKeyDown={e => e.key === 'Enter' && saveRename(s.id)} onClick={e => e.stopPropagation()} className="w-full bg-white text-black border border-black p-1 text-xs font-bold" />
-                        ) : (
-                            <div className="flex items-center gap-2 w-full overflow-hidden">
-                                <span className="truncate font-bold text-sm flex-1">{s.title}</span>
-                                <button onClick={(e) => startRenaming(e, s)} className="opacity-0 group-hover:opacity-100 hover:text-blue-500 transition-opacity"><Edit2 size={12}/></button>
-                            </div>
-                        )}
-                        <button onClick={(e) => deleteSession(e, s.id)} className="hover:text-red-500 ml-1"><Trash2 size={16}/></button>
+                        <span className="truncate font-bold text-sm">{s.title}</span>
+                        <button onClick={(e) => deleteSession(e, s.id)} className="hover:text-red-500"><Trash2 size={16}/></button>
                     </div>
                 </div>
             ))}
@@ -419,7 +414,7 @@ export default function App() {
         <div className="flex-1 overflow-y-auto p-4 space-y-6">
             {currentSessionMessages.map((msg, idx) => (
                 <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                    <div className={`max-w-[85%] md:max-w-[70%] p-4 border-4 border-[var(--border-color)] text-base font-medium shadow-hard ${msg.role === 'user' ? 'bg-[var(--accent-color)] text-white rounded-none' : 'bg-[var(--component-bg)] rounded-none'}`}>
+                    <div className={`max-w-[85%] md:max-w-[70%] p-4 border-4 border-[var(--border-color)] text-base font-medium whitespace-pre-wrap shadow-hard ${msg.role === 'user' ? 'bg-[var(--accent-color)] text-white rounded-none' : 'bg-[var(--component-bg)] rounded-none'}`}>
                         <div className="font-black text-xs mb-2 opacity-80 flex items-center gap-1 uppercase tracking-widest border-b-2 border-current pb-1 w-fit">
                             {msg.role === 'user' ? <User size={12}/> : <Bot size={12}/>} {msg.role}
                         </div>

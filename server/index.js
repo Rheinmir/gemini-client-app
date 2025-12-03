@@ -35,20 +35,25 @@ initDb();
 // --- API ROUTES ---
 app.get('/api/weather', async (req, res) => {
     const { city, key } = req.query;
-    let errorLog = []; // Ghi lại quá trình lỗi
+    let debugLogs = []; // Ghi lại hành trình debug
 
     if (!city) return res.status(400).json({ error: "Thiếu tên thành phố" });
 
+    debugLogs.push(`Request City: ${city}`);
+
     // 1. Thử OpenWeatherMap (Nếu có key)
     if (key && key !== 'null' && key !== '') {
+        debugLogs.push("Attempting OpenWeatherMap...");
         try {
-            console.log(`Trying OWM for ${city}...`);
             const url = `https://api.openweathermap.org/data/2.5/weather?q=${encodeURIComponent(city)}&appid=${key}&units=metric&lang=vi`;
+            debugLogs.push(`OWM URL (masked): ...data/2.5/weather?q=${city}...`);
+            
             const resp = await fetch(url);
             const data = await resp.json();
+
             if (data.cod === 200) {
                 return res.json({
-                    source: "OpenWeatherMap (Chính xác)",
+                    source: "OpenWeatherMap",
                     location: `${data.name}, ${data.sys.country}`,
                     temperature: data.main.temp,
                     feels_like: data.main.feels_like,
@@ -58,55 +63,60 @@ app.get('/api/weather', async (req, res) => {
                     icon: `http://openweathermap.org/img/w/${data.weather[0].icon}.png`
                 });
             }
-            errorLog.push(`OWM Error: ${data.message}`);
-        } catch (err) { errorLog.push(`OWM Net Error: ${err.message}`); }
+            debugLogs.push(`OWM Failed. Code: ${data.cod}, Message: ${data.message}`);
+        } catch (err) { 
+            debugLogs.push(`OWM Network Error: ${err.message}`); 
+        }
     } else {
-        errorLog.push("OWM Skipped (No Key)");
+        debugLogs.push("OWM Skipped: No API Key provided.");
     }
 
     // 2. Fallback Open-Meteo (Miễn phí)
+    debugLogs.push("Attempting Open-Meteo (Fallback)...");
     try {
-        console.log(`Trying Open-Meteo for ${city}...`);
-        // Geocoding
         const geoUrl = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=1&language=en&format=json`;
         const geoRes = await fetch(geoUrl);
         const geoData = await geoRes.json();
         
         if (!geoData.results || geoData.results.length === 0) {
-            errorLog.push(`Geocoding failed: Không tìm thấy tọa độ cho ${city}`);
-            throw new Error("City not found");
+            debugLogs.push(`Geocoding Failed: No results for '${city}'`);
+            // TRẢ VỀ LỖI CHI TIẾT ĐỂ BOT ĐỌC
+            return res.json({ 
+                error: "Không tìm thấy địa điểm.", 
+                details: debugLogs 
+            });
         }
         
         const { latitude, longitude, name, country } = geoData.results[0];
-        
-        // Weather
+        debugLogs.push(`Geocoding Success: ${name} (${latitude}, ${longitude})`);
+
         const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m&timezone=auto`;
         const weatherRes = await fetch(weatherUrl);
         const weatherData = await weatherRes.json();
         const current = weatherData.current;
         
-        // WMO Codes
         const weatherCodeMap = {
             0: "Trời quang", 1: "Có mây", 2: "Nhiều mây", 3: "U ám", 45: "Sương mù", 
             51: "Mưa phùn", 61: "Mưa nhỏ", 63: "Mưa vừa", 65: "Mưa to", 
-            80: "Mưa rào", 95: "Dông bão", 96: "Mưa đá"
+            80: "Mưa rào", 95: "Dông bão"
         };
 
         res.json({
-            source: "Open-Meteo (Free/Fallback)",
+            source: "Open-Meteo (Free)",
             location: `${name}, ${country}`,
             temperature: current.temperature_2m,
             feels_like: current.apparent_temperature,
-            description: weatherCodeMap[current.weather_code] || `Mã thời tiết: ${current.weather_code}`,
+            description: weatherCodeMap[current.weather_code] || `Mã: ${current.weather_code}`,
             humidity: current.relative_humidity_2m,
-            wind_speed: current.wind_speed_10m
+            wind_speed: current.wind_speed_10m,
+            debug_trace: debugLogs // Gửi kèm log thành công để check
         });
     } catch (err) { 
-        errorLog.push(`Open-Meteo Error: ${err.message}`);
-        // Trả về toàn bộ log lỗi để client biết đường debug
+        debugLogs.push(`Open-Meteo Error: ${err.message}`);
+        // Trả về lỗi cuối cùng kèm full log
         res.status(500).json({ 
-            error: "Không thể lấy dữ liệu thời tiết từ cả 2 nguồn.",
-            details: errorLog.join(" | ")
+            error: "Thất bại toàn tập.", 
+            details: debugLogs 
         }); 
     }
 });
