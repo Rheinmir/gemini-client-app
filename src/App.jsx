@@ -394,7 +394,7 @@ export default function App() {
     <div className="flex h-screen overflow-hidden font-mono bg-[var(--app-bg)] text-[var(--text-color)] transition-colors">
       {/* Mobile Backdrop */}
       {showSidebar && (
-        <div className="fixed inset-0 bg-black/50 z-30 md:hidden" onClick={() => setShowSidebar(false)} />
+        <div className="fixed inset-0 bg-black/50 z-40 md:hidden" onClick={() => setShowSidebar(false)} />
       )}
       
       {/* Sidebar fixed + collapsed logic */}
