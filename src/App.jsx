@@ -249,7 +249,6 @@ export default function App() {
           const data1 = await res1.json();
           const firstPart = data1.candidates?.[0]?.content?.parts?.[0];
 
-          // GUARDRAIL: Chặn lỗi nếu Bot không gọi tool khi bị ép
           if (isForced && !firstPart?.functionCall) {
               return "⚠️ LỖI LOGIC: Model không gọi tool theo yêu cầu. Hãy thử gõ lại rõ ràng hơn.";
           }
