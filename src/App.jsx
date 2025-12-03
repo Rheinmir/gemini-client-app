@@ -26,7 +26,7 @@ export default function App() {
   });
   
   const [isConfiguring, setIsConfiguring] = useState(false);
-  const [showSidebar, setShowSidebar] = useState(true);
+  const [showSidebar, setShowSidebar] = useState(true); // Mobile: toggles overlay. Desktop: toggles width.
   const [useFullContext, setUseFullContext] = useState(false);
   const [dbStatus, setDbStatus] = useState('offline');
   const [toolStatus, setToolStatus] = useState(null);
@@ -143,6 +143,7 @@ export default function App() {
     setSessions(prev => [newSession, ...prev]);
     setCurrentSessionId(newSession.id);
     saveSessionToDb(newSession);
+    // On mobile, hide sidebar after creating new chat
     if (window.innerWidth < 768) setShowSidebar(false);
   };
 
@@ -224,10 +225,8 @@ export default function App() {
   };
 
   const callGemini = async (messages, forcedSystemPrompt) => {
-      // --- LOGIC CÔ LẬP NGỮ CẢNH (CONTEXT ISOLATION) ---
-      // Nếu có forcedSystemPrompt (tức là đang ép đổi màu), ta dùng mảng messages rút gọn chỉ chứa tin nhắn cuối
       const isForced = !!forcedSystemPrompt;
-      const historyPayload = (useFullContext && !isForced) ? messages : messages.slice(-1); // Nếu ép tool, chỉ gửi 1 tin cuối
+      const historyPayload = (useFullContext && !isForced) ? messages : messages.slice(-1);
       
       const contents = historyPayload.map(msg => ({ role: msg.role === 'user' ? 'user' : 'model', parts: [{ text: msg.text }] }));
       const sysInstruction = forcedSystemPrompt ? forcedSystemPrompt : config.systemInstruction;
@@ -242,7 +241,6 @@ export default function App() {
       if (firstPart?.functionCall) {
           const fn = firstPart.functionCall;
           const toolResult = await executeTool(fn.name, fn.args);
-          // Khi gửi lại kết quả tool, ta cũng phải dùng lại context đã cô lập
           const contentsWithFunction = [...contents, { role: 'model', parts: [{ functionCall: fn }] }, { role: 'function', parts: [{ functionResponse: { name: fn.name, response: { content: toolResult } } }] }];
           
           const res2 = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${config.geminiKey}`, {
@@ -288,11 +286,10 @@ export default function App() {
     setIsLoading(true);
 
     let tempSystemPrompt = null;
-    // 1. Nếu ép tool thủ công
     if (forcedTool) {
         tempSystemPrompt = `${config.systemInstruction}\n[SYSTEM]: BẮT BUỘC gọi tool '${forcedTool}' ngay. Bỏ qua ngữ cảnh cũ.`;
     }
-    // 2. Nếu phát hiện từ khóa đổi màu (Auto Trigger)
+    
     const lowerInput = userText.toLowerCase();
     if (['màu', 'theme', 'nền', 'giao diện', 'đỏ', 'xanh', 'tím', 'vàng', 'hường'].some(k => lowerInput.includes(k))) {
         tempSystemPrompt = `${config.systemInstruction}\n[SYSTEM]: Người dùng muốn đổi màu. Hãy gọi tool 'change_theme_color' NGAY LẬP TỨC với màu họ yêu cầu. Bỏ qua mọi hội thoại trước đó.`;
@@ -319,13 +316,11 @@ export default function App() {
     <div className="min-h-screen flex items-center justify-center p-4 font-mono bg-[var(--app-bg)] transition-colors">
         <div className="max-w-2xl w-full bg-[var(--component-bg)] text-[var(--text-color)] border-4 border-[var(--border-color)] shadow-hard-lg p-8 max-h-[90vh] overflow-y-auto rounded-none">
             <h1 className="text-3xl font-black mb-6 flex items-center gap-3 uppercase tracking-tighter"><Settings size={32}/> CẤU HÌNH BOT</h1>
-            
             <div className="space-y-6">
                 <div className="border-4 border-[var(--border-color)] p-4 bg-yellow-200 text-black shadow-hard-sm">
                     <h3 className="font-bold flex items-center gap-2 mb-2 uppercase"><ScrollText size={20}/> Nhập Vai (System Prompt)</h3>
                     <textarea rows="3" value={config.systemInstruction} onChange={e => setConfig({...config, systemInstruction: e.target.value})} className="w-full border-2 border-black p-3 text-sm font-bold bg-white focus:outline-none focus:ring-2 ring-black"/>
                 </div>
-
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="border-4 border-[var(--border-color)] p-4 bg-blue-200 text-black shadow-hard-sm">
                         <h3 className="font-bold flex items-center gap-2 mb-2 uppercase"><Sparkles size={20}/> Gemini</h3>
@@ -338,13 +333,11 @@ export default function App() {
                         <input type="password" placeholder="API Key..." value={config.openaiKey} onChange={e => setConfig({...config, openaiKey: e.target.value})} className="w-full border-2 border-black p-2 font-bold"/>
                     </div>
                 </div>
-
                 <div className="border-4 border-[var(--border-color)] p-4 bg-orange-200 text-black shadow-hard-sm">
                     <h3 className="font-bold flex items-center gap-2 mb-2 uppercase"><Cloud size={20}/> Weather Key (OpenWeatherMap)</h3>
                     <input type="password" placeholder="OpenWeatherMap API Key..." value={config.weatherKey} onChange={e => setConfig({...config, weatherKey: e.target.value})} className="w-full border-2 border-black p-2 font-bold"/>
                     <p className="text-xs mt-1">Cần key để xem thời tiết. Lấy tại openweathermap.org</p>
                 </div>
-
                 <div>
                     <label className="font-black block mb-2 uppercase">Model Mặc Định:</label>
                     <select value={config.activeProvider} onChange={e => setConfig({...config, activeProvider: e.target.value})} className="w-full border-4 border-[var(--border-color)] p-3 font-bold bg-white text-black shadow-hard-sm focus:outline-none">
@@ -352,7 +345,6 @@ export default function App() {
                         <option value="openai">OpenAI Compatible</option>
                     </select>
                 </div>
-
                 <button onClick={() => saveConfig(config)} className="w-full bg-[var(--accent-color)] text-white font-black text-xl py-4 border-4 border-[var(--border-color)] shadow-hard hover:translate-y-1 hover:shadow-none transition-all uppercase">LƯU & BẮT ĐẦU</button>
             </div>
         </div>
@@ -361,53 +353,68 @@ export default function App() {
 
   return (
     <div className="flex h-screen overflow-hidden font-mono bg-[var(--app-bg)] text-[var(--text-color)] transition-colors">
-      <div className={`fixed inset-y-0 left-0 z-20 w-72 bg-[var(--sidebar-bg)] border-r-4 border-[var(--border-color)] flex flex-col transform transition-transform duration-300 ${showSidebar ? 'translate-x-0' : '-translate-x-full'} md:relative md:translate-x-0`}>
-        <div className="p-4 border-b-4 border-[var(--border-color)] flex justify-between items-center bg-[var(--accent-color)] text-white">
-           <h2 className="font-black text-xl flex gap-2 uppercase tracking-tight"><Sparkles/> {config.activeProvider.toUpperCase()}</h2>
-           <button onClick={() => setShowSidebar(false)} className="md:hidden"><X/></button>
-        </div>
-        <div className="p-4"><button onClick={createNewSession} className="w-full bg-[var(--component-bg)] text-[var(--text-color)] border-4 border-[var(--border-color)] p-3 font-bold shadow-hard hover:shadow-none hover:translate-y-1 flex items-center justify-center gap-2 uppercase"><Plus/> New Chat</button></div>
-        <div className="flex-1 overflow-y-auto p-4 space-y-3">
-            {sessions.map(s => (
-                <div key={s.id} onClick={() => { setCurrentSessionId(s.id); if(window.innerWidth < 768) setShowSidebar(false); }} className={`p-3 border-4 border-[var(--border-color)] cursor-pointer truncate transition-all ${currentSessionId === s.id ? 'bg-[var(--accent-color)] text-white shadow-hard' : 'bg-[var(--component-bg)] hover:bg-gray-100'}`}>
-                    <div className="flex justify-between items-center">
-                        {editingSessionId === s.id ? (
-                            <input autoFocus value={renameText} onChange={e => setRenameText(e.target.value)} onBlur={() => saveRename(s.id)} onKeyDown={e => e.key === 'Enter' && saveRename(s.id)} onClick={e => e.stopPropagation()} className="w-full bg-white text-black border border-black p-1 text-xs font-bold" />
-                        ) : (
-                            <div className="flex items-center gap-2 w-full overflow-hidden">
-                                <span className="truncate font-bold text-sm flex-1">{s.title}</span>
-                                <button onClick={(e) => startRenaming(e, s)} className="opacity-0 group-hover:opacity-100 hover:text-blue-500 transition-opacity"><Edit2 size={12}/></button>
-                            </div>
-                        )}
-                        <button onClick={(e) => deleteSession(e, s.id)} className="hover:text-red-500 ml-1"><Trash2 size={16}/></button>
-                    </div>
-                </div>
-            ))}
-        </div>
-        
-        {/* FOOTER: IMPORT/EXPORT */}
-        <div className="p-4 border-t-4 border-[var(--border-color)] bg-[var(--component-bg)] grid grid-cols-2 gap-2">
-             <button onClick={handleExportToon} className="flex items-center justify-center gap-1 text-xs font-black border-4 border-[var(--border-color)] p-2 bg-yellow-300 text-black hover:bg-yellow-400 shadow-hard hover:shadow-none transition-all uppercase">
-                <Download size={14} /> SAVE
-             </button>
-             <input type="file" ref={fileInputRef} onChange={handleImportToon} className="hidden" accept=".toon" />
-             <button onClick={() => fileInputRef.current.click()} className="flex items-center justify-center gap-1 text-xs font-black border-4 border-[var(--border-color)] p-2 bg-green-300 text-black hover:bg-green-400 shadow-hard hover:shadow-none transition-all uppercase">
-                <Upload size={14} /> LOAD
-             </button>
-        </div>
+      <div className={`fixed md:static inset-y-0 left-0 z-40 w-72 bg-[var(--sidebar-bg)] border-r-4 border-[var(--border-color)] flex flex-col transform transition-transform duration-300 ease-in-out ${showSidebar ? 'translate-x-0' : '-translate-x-full'} md:w-72 md:translate-x-0`}> 
+        {/* Adjusted sidebar classes above: 
+            - Mobile: 'fixed' + z-40. Toggles via translate.
+            - Desktop: 'static' (flex item). Always visible 'md:translate-x-0'. 
+            Wait, user wanted collapsible on desktop too.
+            Let's use a cleaner approach for responsive + collapsible desktop.
+        */}
       </div>
+      {/* Re-render Sidebar Logic properly */}
+       <div className={`
+          fixed inset-y-0 left-0 z-40 
+          w-72 bg-[var(--sidebar-bg)] border-r-4 border-[var(--border-color)] 
+          flex flex-col transition-all duration-300 ease-in-out
+          ${showSidebar ? 'translate-x-0' : '-translate-x-full'}
+          md:relative md:translate-x-0 
+          ${!showSidebar && 'md:w-0 md:overflow-hidden md:border-r-0'} 
+          `}>
+          {/* Sidebar Content */}
+          <div className="p-4 border-b-4 border-[var(--border-color)] flex justify-between items-center bg-[var(--accent-color)] text-white min-w-[18rem]">
+             <h2 className="font-black text-xl flex gap-2 uppercase tracking-tight"><Sparkles/> {config.activeProvider.toUpperCase()}</h2>
+             <button onClick={() => setShowSidebar(false)} className="md:hidden"><X/></button>
+          </div>
+          <div className="p-4 min-w-[18rem]"><button onClick={createNewSession} className="w-full bg-[var(--component-bg)] text-[var(--text-color)] border-4 border-[var(--border-color)] p-3 font-bold shadow-hard hover:shadow-none hover:translate-y-1 flex items-center justify-center gap-2 uppercase"><Plus/> New Chat</button></div>
+          <div className="flex-1 overflow-y-auto p-4 space-y-3 min-w-[18rem]">
+              {sessions.map(s => (
+                  <div key={s.id} onClick={() => { setCurrentSessionId(s.id); if(window.innerWidth < 768) setShowSidebar(false); }} className={`p-3 border-4 border-[var(--border-color)] cursor-pointer truncate transition-all ${currentSessionId === s.id ? 'bg-[var(--accent-color)] text-white shadow-hard' : 'bg-[var(--component-bg)] hover:bg-gray-100'}`}>
+                      <div className="flex justify-between items-center">
+                          {editingSessionId === s.id ? (
+                              <input autoFocus value={renameText} onChange={e => setRenameText(e.target.value)} onBlur={() => saveRename(s.id)} onKeyDown={e => e.key === 'Enter' && saveRename(s.id)} onClick={e => e.stopPropagation()} className="w-full bg-white text-black border border-black p-1 text-xs font-bold" />
+                          ) : (
+                              <div className="flex items-center gap-2 w-full overflow-hidden">
+                                  <span className="truncate font-bold text-sm flex-1">{s.title}</span>
+                                  <button onClick={(e) => startRenaming(e, s)} className="opacity-0 group-hover:opacity-100 hover:text-blue-500 transition-opacity"><Edit2 size={12}/></button>
+                              </div>
+                          )}
+                          <button onClick={(e) => deleteSession(e, s.id)} className="hover:text-red-500 ml-1"><Trash2 size={16}/></button>
+                      </div>
+                  </div>
+              ))}
+          </div>
+          <div className="p-4 border-t-4 border-[var(--border-color)] bg-[var(--component-bg)] grid grid-cols-2 gap-2 min-w-[18rem]">
+             <button onClick={handleExportToon} className="flex items-center justify-center gap-1 text-xs font-black border-4 border-[var(--border-color)] p-2 bg-yellow-300 text-black hover:bg-yellow-400 shadow-hard hover:shadow-none transition-all uppercase"><Download size={14} /> SAVE</button>
+             <input type="file" ref={fileInputRef} onChange={handleImportToon} className="hidden" accept=".toon" />
+             <button onClick={() => fileInputRef.current.click()} className="flex items-center justify-center gap-1 text-xs font-black border-4 border-[var(--border-color)] p-2 bg-green-300 text-black hover:bg-green-400 shadow-hard hover:shadow-none transition-all uppercase"><Upload size={14} /> LOAD</button>
+          </div>
+      </div>
+
+      {/* Mobile Backdrop */}
+      {showSidebar && (
+        <div className="fixed inset-0 bg-black/50 z-30 md:hidden" onClick={() => setShowSidebar(false)} />
+      )}
 
       <div className="flex-1 flex flex-col h-full relative">
         <header className="bg-[var(--component-bg)] border-b-4 border-[var(--border-color)] p-4 flex justify-between items-center shadow-sm z-10">
             <div className="flex items-center gap-4">
-                <button onClick={() => setShowSidebar(!showSidebar)} className="md:hidden"><Menu/></button>
+                <button onClick={() => setShowSidebar(!showSidebar)}><Menu/></button>
                 <h1 className="font-black text-2xl truncate uppercase tracking-tight">{sessions.find(s => s.id === currentSessionId)?.title}</h1>
             </div>
             <div className="flex items-center gap-3">
                 <button onClick={() => setUseFullContext(!useFullContext)} className={`hidden sm:flex items-center gap-2 px-3 py-1.5 text-xs font-black border-4 border-[var(--border-color)] shadow-hard hover:shadow-none transition-all uppercase ${useFullContext ? 'bg-pink-400 text-black' : 'bg-emerald-400 text-black'}`}>
                     {useFullContext ? <Brain size={14} /> : <Zap size={14} />} <span>{useFullContext ? 'FULL' : 'ECO'}</span>
                 </button>
-
                 <div title={`DB: ${dbStatus}`} className={`w-4 h-4 rounded-full border-2 border-black ${dbStatus === 'online' ? 'bg-green-500' : 'bg-red-500'}`}></div>
                 <button onClick={() => setIsConfiguring(true)} className="hover:rotate-90 transition-transform"><Settings size={28}/></button>
             </div>
@@ -432,7 +439,7 @@ export default function App() {
         <div className="bg-[var(--component-bg)] border-t-4 border-[var(--border-color)] p-6">
             <div className="max-w-4xl mx-auto flex gap-3 relative">
                 <div className="relative flex items-center">
-                    <button onClick={() => setForcedTool(forcedTool ? null : 'auto')} className={`p-3 border-4 border-[var(--border-color)] shadow-hard hover:shadow-none transition-all ${forcedTool ? 'bg-red-500 text-white animate-pulse' : 'bg-gray-200 text-black'}`} title="Ép dùng Tool (Manual Override)"><Wrench size={24}/></button>
+                    <button onClick={() => setForcedTool(forcedTool ? null : 'auto')} className={`p-3 border-4 border-[var(--border-color)] shadow-hard hover:shadow-none transition-all ${forcedTool ? 'bg-red-500 text-white animate-pulse' : 'bg-gray-200 text-black'}`} title="Ép dùng Tool"><Wrench size={24}/></button>
                     {forcedTool === 'auto' && (
                         <div className="absolute bottom-full left-0 mb-2 w-48 bg-white border-4 border-black shadow-hard flex flex-col z-50">
                             <button onClick={() => setForcedTool('search_memory')} className="p-2 hover:bg-gray-200 text-left text-xs font-bold border-b border-black">🔍 Tìm Ký Ức</button>
