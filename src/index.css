@@ -15,13 +15,13 @@
 body {
     background-color: var(--app-bg);
     color: var(--text-color);
-    font-family: 'Nunito', sans-serif; /* Font mới hỗ trợ tiếng Việt */
+    font-family: 'Nunito', sans-serif;
     transition: background-color 0.4s ease;
 }
 
 h1, h2, h3, button, .font-bold {
     font-family: 'Nunito', sans-serif;
-    font-weight: 900; /* Đậm đà kiểu Toon */
+    font-weight: 900;
 }
 
 ::-webkit-scrollbar {
@@ -34,4 +34,31 @@ h1, h2, h3, button, .font-bold {
 ::-webkit-scrollbar-thumb {
   background: var(--accent-color);
   border: 3px solid var(--border-color);
+}
+
+/* MARKDOWN STYLES */
+.markdown-content strong {
+    font-weight: 900;
+    color: inherit;
+}
+
+.markdown-content ul {
+    list-style-type: disc;
+    padding-left: 1.5rem;
+    margin-top: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.markdown-content ol {
+    list-style-type: decimal;
+    padding-left: 1.5rem;
+    margin-top: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.markdown-content p {
+    margin-bottom: 0.5rem;
+}
+.markdown-content p:last-child {
+    margin-bottom: 0;
 }

@@ -1,18 +1,18 @@
 import React, { useState, useRef, useEffect } from 'react';
+import ReactMarkdown from 'react-markdown';
 import { Send, Bot, User, Plus, MessageSquare, Trash2, Settings, Menu, X, Sparkles, Download, Upload, Zap, Brain, Database, Cpu, Wrench, ScrollText, Palette, CloudSun, Cloud, Edit2, Check } from 'lucide-react';
 import { GEMINI_TOOLS } from './tools';
 import { generateTheme } from './themeHelper';
 
 const generateId = () => Math.random().toString(36).substr(2, 9);
 
-// SYSTEM PROMPT MỚI: Nhấn mạnh việc lặp lại hành động
 const DEFAULT_SYSTEM_INSTRUCTION = `Bạn là Gemin-Toon, một trợ lý AI thông minh.
 KỸ NĂNG:
 1. search_memory: Tìm kiếm thông tin cũ.
-2. change_theme_color: Đổi màu giao diện. LƯU Ý: Bạn có thể đổi màu NHIỀU LẦN liên tiếp nếu người dùng yêu cầu. Đừng ngại thực hiện lại lệnh tương tự.
+2. change_theme_color: Đổi màu giao diện.
 3. get_weather: Xem thời tiết (Cần OpenWeatherMap Key).
 
-NHIỆM VỤ: Trả lời ngắn gọn, hài hước, hữu ích.`;
+NHIỆM VỤ: Trả lời ngắn gọn, hài hước, hữu ích. Dùng Markdown (in đậm, list) để trình bày đẹp.`;
 
 export default function App() {
   const [config, setConfig] = useState({
@@ -35,7 +35,6 @@ export default function App() {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   
-  // State mới cho tính năng Rename và Force Tool
   const [editingSessionId, setEditingSessionId] = useState(null);
   const [renameText, setRenameText] = useState('');
   const [forcedTool, setForcedTool] = useState(null);
@@ -43,7 +42,6 @@ export default function App() {
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
 
-  // --- THEME SYNC ---
   const applyTheme = (themeData) => {
       if (!themeData) return;
       const root = document.documentElement;
@@ -75,7 +73,6 @@ export default function App() {
       return () => clearInterval(interval);
   }, []);
 
-  // --- INIT ---
   useEffect(() => {
     const storedConfig = localStorage.getItem('app_config');
     if (storedConfig) {
@@ -118,7 +115,6 @@ export default function App() {
 
   const deleteSessionFromDb = async (id) => { try { await fetch(`/api/sessions/${id}`, { method: 'DELETE' }); } catch(err) {} };
 
-  // --- RENAME LOGIC ---
   const startRenaming = (e, session) => {
       e.stopPropagation();
       setEditingSessionId(session.id);
@@ -127,12 +123,8 @@ export default function App() {
 
   const saveRename = async (id) => {
       if (!renameText.trim()) return;
-      
-      // Update UI
       setSessions(prev => prev.map(s => s.id === id ? { ...s, title: renameText } : s));
       setEditingSessionId(null);
-
-      // Update Server
       try {
           await fetch(`/api/sessions/${id}/title`, {
               method: 'PATCH',
@@ -195,7 +187,6 @@ export default function App() {
     e.target.value = ''; 
   };
 
-  // --- TOOL EXECUTOR ---
   const executeTool = async (functionName, args) => {
       if (functionName === 'search_memory') {
           setToolStatus(`🔍 Đang tìm: "${args.keyword}"...`);
@@ -224,7 +215,7 @@ export default function App() {
               const data = await res.json();
               setTimeout(() => setToolStatus(null), 1000);
               if (data.error) return `Lỗi: ${data.error}`;
-              return `Thời tiết tại ${data.location}:\n🌡️ ${data.temperature}°C, ${data.description}\n🤔 Cảm giác: ${data.feels_like}°C\n💧 Độ ẩm: ${data.humidity}%\n💨 Gió: ${data.wind_speed} m/s`;
+              return `Thời tiết tại ${data.location}:\n* Nhiệt độ: **${data.temperature}°C**\n* Tình trạng: **${data.description}**\n* Độ ẩm: ${data.humidity}%\n* Gió: ${data.wind_speed} m/s`;
           } catch (e) { return "Lỗi kết nối thời tiết."; }
       }
 
@@ -234,7 +225,6 @@ export default function App() {
   const callGemini = async (messages, forcedSystemPrompt) => {
       const historyPayload = useFullContext ? messages : messages.slice(-10);
       const contents = historyPayload.map(msg => ({ role: msg.role === 'user' ? 'user' : 'model', parts: [{ text: msg.text }] }));
-      
       const sysInstruction = forcedSystemPrompt ? forcedSystemPrompt : config.systemInstruction;
 
       const res1 = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${config.geminiKey}`, {
@@ -291,7 +281,12 @@ export default function App() {
 
     let tempSystemPrompt = config.systemInstruction;
     if (forcedTool) {
-        tempSystemPrompt += `\n[QUAN TRỌNG]: Người dùng ĐANG YÊU CẦU BẮT BUỘC sử dụng công cụ '${forcedTool}' cho tin nhắn này. Đừng trả lời bằng lời, hãy gọi hàm ngay lập tức.`;
+        tempSystemPrompt += `\n[CHẾ ĐỘ BẮT BUỘC]: Bỏ qua mọi ngữ cảnh. BẮT BUỘC gọi tool '${forcedTool}' ngay lập tức.`;
+    }
+    
+    const lowerInput = userText.toLowerCase();
+    if (['màu', 'theme', 'nền', 'giao diện'].some(k => lowerInput.includes(k))) {
+        tempSystemPrompt += `\n[CHẾ ĐỘ ƯU TIÊN]: Phát hiện ý định đổi màu. BẮT BUỘC gọi tool 'change_theme_color' ngay lập tức.`;
     }
 
     try {
@@ -367,17 +362,8 @@ export default function App() {
             {sessions.map(s => (
                 <div key={s.id} onClick={() => { setCurrentSessionId(s.id); if(window.innerWidth < 768) setShowSidebar(false); }} className={`p-3 border-4 border-[var(--border-color)] cursor-pointer truncate transition-all ${currentSessionId === s.id ? 'bg-[var(--accent-color)] text-white shadow-hard' : 'bg-[var(--component-bg)] hover:bg-gray-100'}`}>
                     <div className="flex justify-between items-center">
-                        {/* LOGIC RENAME UI */}
                         {editingSessionId === s.id ? (
-                            <input 
-                                autoFocus
-                                value={renameText} 
-                                onChange={e => setRenameText(e.target.value)} 
-                                onBlur={() => saveRename(s.id)}
-                                onKeyDown={e => e.key === 'Enter' && saveRename(s.id)}
-                                onClick={e => e.stopPropagation()}
-                                className="w-full bg-white text-black border border-black p-1 text-xs font-bold"
-                            />
+                            <input autoFocus value={renameText} onChange={e => setRenameText(e.target.value)} onBlur={() => saveRename(s.id)} onKeyDown={e => e.key === 'Enter' && saveRename(s.id)} onClick={e => e.stopPropagation()} className="w-full bg-white text-black border border-black p-1 text-xs font-bold" />
                         ) : (
                             <div className="flex items-center gap-2 w-full overflow-hidden">
                                 <span className="truncate font-bold text-sm flex-1">{s.title}</span>
@@ -390,15 +376,10 @@ export default function App() {
             ))}
         </div>
         
-        {/* FOOTER: IMPORT/EXPORT */}
         <div className="p-4 border-t-4 border-[var(--border-color)] bg-[var(--component-bg)] grid grid-cols-2 gap-2">
-             <button onClick={handleExportToon} className="flex items-center justify-center gap-1 text-xs font-black border-4 border-[var(--border-color)] p-2 bg-yellow-300 text-black hover:bg-yellow-400 shadow-hard hover:shadow-none transition-all uppercase">
-                <Download size={14} /> SAVE
-             </button>
+             <button onClick={handleExportToon} className="flex items-center justify-center gap-1 text-xs font-black border-4 border-[var(--border-color)] p-2 bg-yellow-300 text-black hover:bg-yellow-400 shadow-hard hover:shadow-none transition-all uppercase"><Download size={14} /> SAVE</button>
              <input type="file" ref={fileInputRef} onChange={handleImportToon} className="hidden" accept=".toon" />
-             <button onClick={() => fileInputRef.current.click()} className="flex items-center justify-center gap-1 text-xs font-black border-4 border-[var(--border-color)] p-2 bg-green-300 text-black hover:bg-green-400 shadow-hard hover:shadow-none transition-all uppercase">
-                <Upload size={14} /> LOAD
-             </button>
+             <button onClick={() => fileInputRef.current.click()} className="flex items-center justify-center gap-1 text-xs font-black border-4 border-[var(--border-color)] p-2 bg-green-300 text-black hover:bg-green-400 shadow-hard hover:shadow-none transition-all uppercase"><Upload size={14} /> LOAD</button>
         </div>
       </div>
 
@@ -409,7 +390,6 @@ export default function App() {
                 <h1 className="font-black text-2xl truncate uppercase tracking-tight">{sessions.find(s => s.id === currentSessionId)?.title}</h1>
             </div>
             <div className="flex items-center gap-3">
-                {/* ECO/FULL TOGGLE */}
                 <button onClick={() => setUseFullContext(!useFullContext)} className={`hidden sm:flex items-center gap-2 px-3 py-1.5 text-xs font-black border-4 border-[var(--border-color)] shadow-hard hover:shadow-none transition-all uppercase ${useFullContext ? 'bg-pink-400 text-black' : 'bg-emerald-400 text-black'}`}>
                     {useFullContext ? <Brain size={14} /> : <Zap size={14} />} <span>{useFullContext ? 'FULL' : 'ECO'}</span>
                 </button>
@@ -422,11 +402,11 @@ export default function App() {
         <div className="flex-1 overflow-y-auto p-4 space-y-6">
             {currentSessionMessages.map((msg, idx) => (
                 <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                    <div className={`max-w-[85%] md:max-w-[70%] p-4 border-4 border-[var(--border-color)] text-base font-medium whitespace-pre-wrap shadow-hard ${msg.role === 'user' ? 'bg-[var(--accent-color)] text-white rounded-none' : 'bg-[var(--component-bg)] rounded-none'}`}>
+                    <div className={`max-w-[85%] md:max-w-[70%] p-4 border-4 border-[var(--border-color)] text-base font-medium shadow-hard ${msg.role === 'user' ? 'bg-[var(--accent-color)] text-white rounded-none' : 'bg-[var(--component-bg)] rounded-none'}`}>
                         <div className="font-black text-xs mb-2 opacity-80 flex items-center gap-1 uppercase tracking-widest border-b-2 border-current pb-1 w-fit">
                             {msg.role === 'user' ? <User size={12}/> : <Bot size={12}/>} {msg.role}
                         </div>
-                        {msg.text}
+                        <div className="markdown-content"><ReactMarkdown>{msg.text}</ReactMarkdown></div>
                     </div>
                 </div>
             ))}
@@ -437,16 +417,8 @@ export default function App() {
 
         <div className="bg-[var(--component-bg)] border-t-4 border-[var(--border-color)] p-6">
             <div className="max-w-4xl mx-auto flex gap-3 relative">
-                {/* TOOL SELECTOR POPUP */}
                 <div className="relative flex items-center">
-                    <button 
-                        onClick={() => setForcedTool(forcedTool ? null : 'auto')} 
-                        className={`p-3 border-4 border-[var(--border-color)] shadow-hard hover:shadow-none transition-all ${forcedTool ? 'bg-red-500 text-white animate-pulse' : 'bg-gray-200 text-black'}`}
-                        title="Ép dùng Tool (Manual Override)"
-                    >
-                        <Wrench size={24}/>
-                    </button>
-                    {/* Menu chọn tool */}
+                    <button onClick={() => setForcedTool(forcedTool ? null : 'auto')} className={`p-3 border-4 border-[var(--border-color)] shadow-hard hover:shadow-none transition-all ${forcedTool ? 'bg-red-500 text-white animate-pulse' : 'bg-gray-200 text-black'}`} title="Ép dùng Tool (Manual Override)"><Wrench size={24}/></button>
                     {forcedTool === 'auto' && (
                         <div className="absolute bottom-full left-0 mb-2 w-48 bg-white border-4 border-black shadow-hard flex flex-col z-50">
                             <button onClick={() => setForcedTool('search_memory')} className="p-2 hover:bg-gray-200 text-left text-xs font-bold border-b border-black">🔍 Tìm Ký Ức</button>
@@ -455,7 +427,6 @@ export default function App() {
                         </div>
                     )}
                 </div>
-
                 <input type="text" value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()} placeholder={forcedTool && forcedTool !== 'auto' ? `[CHẾ ĐỘ ÉP TOOL]: ${forcedTool}...` : "Nhập tin nhắn..."} disabled={isLoading} className="flex-1 border-4 border-[var(--border-color)] p-4 shadow-hard text-lg font-bold bg-[var(--app-bg)] focus:outline-none focus:translate-y-1 focus:shadow-none transition-all placeholder-[var(--text-color)]/50"/>
                 <button onClick={handleSendMessage} disabled={isLoading || !input.trim()} className="bg-[var(--accent-color)] text-white border-4 border-[var(--border-color)] px-8 shadow-hard hover:shadow-none hover:translate-y-1 font-black uppercase tracking-widest"><Send size={24}/></button>
             </div>
