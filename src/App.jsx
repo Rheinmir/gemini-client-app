@@ -200,7 +200,7 @@ export default function App() {
       } 
       
       if (functionName === 'change_theme_color') {
-          const colorInput = args.colorName || args.color || 'default'; // Fallback
+          const colorInput = args.colorName || args.color || 'default';
           setToolStatus(`🎨 Đang phối màu: ${colorInput}...`);
           const newTheme = generateTheme(colorInput);
           applyTheme(newTheme);
@@ -224,7 +224,11 @@ export default function App() {
   };
 
   const callGemini = async (messages, forcedSystemPrompt) => {
-      const historyPayload = useFullContext ? messages : messages.slice(-10);
+      // --- LOGIC CÔ LẬP NGỮ CẢNH (CONTEXT ISOLATION) ---
+      // Nếu có forcedSystemPrompt (tức là đang ép đổi màu), ta dùng mảng messages rút gọn chỉ chứa tin nhắn cuối
+      const isForced = !!forcedSystemPrompt;
+      const historyPayload = (useFullContext && !isForced) ? messages : messages.slice(-1); // Nếu ép tool, chỉ gửi 1 tin cuối
+      
       const contents = historyPayload.map(msg => ({ role: msg.role === 'user' ? 'user' : 'model', parts: [{ text: msg.text }] }));
       const sysInstruction = forcedSystemPrompt ? forcedSystemPrompt : config.systemInstruction;
 
@@ -238,6 +242,7 @@ export default function App() {
       if (firstPart?.functionCall) {
           const fn = firstPart.functionCall;
           const toolResult = await executeTool(fn.name, fn.args);
+          // Khi gửi lại kết quả tool, ta cũng phải dùng lại context đã cô lập
           const contentsWithFunction = [...contents, { role: 'model', parts: [{ functionCall: fn }] }, { role: 'function', parts: [{ functionResponse: { name: fn.name, response: { content: toolResult } } }] }];
           
           const res2 = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${config.geminiKey}`, {
@@ -251,7 +256,9 @@ export default function App() {
   };
 
   const callOpenAI = async (messages, forcedSystemPrompt) => {
-      const historyPayload = useFullContext ? messages : messages.slice(-10);
+      const isForced = !!forcedSystemPrompt;
+      const historyPayload = (useFullContext && !isForced) ? messages : messages.slice(-1);
+      
       const sysInstruction = forcedSystemPrompt ? forcedSystemPrompt : config.systemInstruction;
       const apiMessages = [{ role: "system", content: sysInstruction }, ...historyPayload.map(msg => ({ role: msg.role === 'model' ? 'assistant' : msg.role, content: msg.text }))];
       const baseUrl = config.openaiBaseUrl.replace(/\/$/, ""); 
@@ -280,14 +287,15 @@ export default function App() {
     setInput('');
     setIsLoading(true);
 
-    let tempSystemPrompt = config.systemInstruction;
+    let tempSystemPrompt = null;
+    // 1. Nếu ép tool thủ công
     if (forcedTool) {
-        tempSystemPrompt += `\n[CHẾ ĐỘ BẮT BUỘC]: Bỏ qua mọi ngữ cảnh. BẮT BUỘC gọi tool '${forcedTool}' ngay lập tức.`;
+        tempSystemPrompt = `${config.systemInstruction}\n[SYSTEM]: BẮT BUỘC gọi tool '${forcedTool}' ngay. Bỏ qua ngữ cảnh cũ.`;
     }
-    
+    // 2. Nếu phát hiện từ khóa đổi màu (Auto Trigger)
     const lowerInput = userText.toLowerCase();
-    if (['màu', 'theme', 'nền', 'giao diện'].some(k => lowerInput.includes(k))) {
-        tempSystemPrompt += `\n[CHẾ ĐỘ ƯU TIÊN]: Phát hiện ý định đổi màu. Bỏ qua context trước đó. BẮT BUỘC gọi tool 'change_theme_color' theo màu vừa nhận được ngay lập tức.`;
+    if (['màu', 'theme', 'nền', 'giao diện', 'đỏ', 'xanh', 'tím', 'vàng', 'hường'].some(k => lowerInput.includes(k))) {
+        tempSystemPrompt = `${config.systemInstruction}\n[SYSTEM]: Người dùng muốn đổi màu. Hãy gọi tool 'change_theme_color' NGAY LẬP TỨC với màu họ yêu cầu. Bỏ qua mọi hội thoại trước đó.`;
     }
 
     try {
@@ -355,7 +363,7 @@ export default function App() {
     <div className="flex h-screen overflow-hidden font-mono bg-[var(--app-bg)] text-[var(--text-color)] transition-colors">
       <div className={`fixed inset-y-0 left-0 z-20 w-72 bg-[var(--sidebar-bg)] border-r-4 border-[var(--border-color)] flex flex-col transform transition-transform duration-300 ${showSidebar ? 'translate-x-0' : '-translate-x-full'} md:relative md:translate-x-0`}>
         <div className="p-4 border-b-4 border-[var(--border-color)] flex justify-between items-center bg-[var(--accent-color)] text-white">
-           <h2 className="font-black text-xl flex gap-2 uppercase tracking-tight"><Sparkles/> {config.activeProvider}</h2>
+           <h2 className="font-black text-xl flex gap-2 uppercase tracking-tight"><Sparkles/> {config.activeProvider.toUpperCase()}</h2>
            <button onClick={() => setShowSidebar(false)} className="md:hidden"><X/></button>
         </div>
         <div className="p-4"><button onClick={createNewSession} className="w-full bg-[var(--component-bg)] text-[var(--text-color)] border-4 border-[var(--border-color)] p-3 font-bold shadow-hard hover:shadow-none hover:translate-y-1 flex items-center justify-center gap-2 uppercase"><Plus/> New Chat</button></div>
@@ -377,10 +385,15 @@ export default function App() {
             ))}
         </div>
         
+        {/* FOOTER: IMPORT/EXPORT */}
         <div className="p-4 border-t-4 border-[var(--border-color)] bg-[var(--component-bg)] grid grid-cols-2 gap-2">
-             <button onClick={handleExportToon} className="flex items-center justify-center gap-1 text-xs font-black border-4 border-[var(--border-color)] p-2 bg-yellow-300 text-black hover:bg-yellow-400 shadow-hard hover:shadow-none transition-all uppercase"><Download size={14} /> SAVE</button>
+             <button onClick={handleExportToon} className="flex items-center justify-center gap-1 text-xs font-black border-4 border-[var(--border-color)] p-2 bg-yellow-300 text-black hover:bg-yellow-400 shadow-hard hover:shadow-none transition-all uppercase">
+                <Download size={14} /> SAVE
+             </button>
              <input type="file" ref={fileInputRef} onChange={handleImportToon} className="hidden" accept=".toon" />
-             <button onClick={() => fileInputRef.current.click()} className="flex items-center justify-center gap-1 text-xs font-black border-4 border-[var(--border-color)] p-2 bg-green-300 text-black hover:bg-green-400 shadow-hard hover:shadow-none transition-all uppercase"><Upload size={14} /> LOAD</button>
+             <button onClick={() => fileInputRef.current.click()} className="flex items-center justify-center gap-1 text-xs font-black border-4 border-[var(--border-color)] p-2 bg-green-300 text-black hover:bg-green-400 shadow-hard hover:shadow-none transition-all uppercase">
+                <Upload size={14} /> LOAD
+             </button>
         </div>
       </div>
 
