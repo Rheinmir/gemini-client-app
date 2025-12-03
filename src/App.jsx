@@ -399,7 +399,7 @@ export default function App() {
       
       {/* Sidebar fixed + collapsed logic */}
       <div className={`
-          fixed inset-y-0 left-0 z-40 
+          fixed inset-y-0 left-0 z-50 
           w-[260px] bg-[var(--sidebar-bg)] border-r-4 border-[var(--border-color)] 
           flex flex-col transition-all duration-300 ease-in-out
           ${showSidebar ? 'translate-x-0' : '-translate-x-full'}
@@ -459,7 +459,7 @@ export default function App() {
         <div className="flex-1 overflow-y-auto p-4 space-y-6">
             {currentSessionMessages.map((msg, idx) => (
                 <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                    <div className={`max-w-[85%] md:max-w-[70%] p-4 border-2 border-[var(--border-color)] rounded-lg text-base font-medium shadow-hard ${msg.role === 'user' ? 'bg-[var(--accent-color)] text-white' : 'bg-[var(--component-bg)]'}`}>
+                    <div className={`max-w-[85%] md:max-w-[70%] p-4 border-4 border-[var(--border-color)] rounded-lg text-base font-medium shadow-hard ${msg.role === 'user' ? 'bg-[var(--accent-color)] text-white' : 'bg-[var(--component-bg)]'}`}>
                         <div className="font-black text-xs mb-2 opacity-80 flex items-center gap-1 uppercase tracking-widest border-b-2 border-current pb-1 w-fit">
                             {msg.role === 'user' ? <User size={12}/> : <Bot size={12}/>} {msg.role}
                         </div>
@@ -473,8 +473,8 @@ export default function App() {
         </div>
 
         <div className="bg-[var(--component-bg)] border-t-2 border-[var(--border-color)] p-6">
-            <div className="max-w-4xl mx-auto flex gap-3 relative z-50">
-                <div className="relative flex items-center">
+            <div className="max-w-4xl mx-auto flex gap-3 relative z-40">
+                <div className="relative flex items-center z-50">
                     <button onClick={() => setForcedTool(forcedTool ? null : 'auto')} className={`p-3 border-2 border-[var(--border-color)] rounded-lg shadow-hard hover:shadow-none transition-all ${forcedTool ? 'bg-red-500 text-white animate-pulse' : 'bg-gray-200 text-black'}`} title="Ép dùng Tool"><Wrench size={24}/></button>
                     {forcedTool === 'auto' && (
                         <div className="absolute bottom-full left-0 mb-2 w-48 bg-white border-2 border-black rounded-lg shadow-hard flex flex-col z-50 overflow-hidden">
