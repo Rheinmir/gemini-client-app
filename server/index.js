@@ -35,7 +35,7 @@ initDb();
 // --- API ROUTES ---
 app.get('/api/weather', async (req, res) => {
     const { city, key } = req.query;
-    let debugLogs = []; // Ghi lại hành trình debug
+    let debugLogs = [];
 
     if (!city) return res.status(400).json({ error: "Thiếu tên thành phố" });
 
@@ -46,8 +46,6 @@ app.get('/api/weather', async (req, res) => {
         debugLogs.push("Attempting OpenWeatherMap...");
         try {
             const url = `https://api.openweathermap.org/data/2.5/weather?q=${encodeURIComponent(city)}&appid=${key}&units=metric&lang=vi`;
-            debugLogs.push(`OWM URL (masked): ...data/2.5/weather?q=${city}...`);
-            
             const resp = await fetch(url);
             const data = await resp.json();
 
