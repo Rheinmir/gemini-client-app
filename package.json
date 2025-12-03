@@ -1,11 +1,7 @@
 {
   "name": "gemini-toon-chat",
   "private": true,
-<<<<<<< HEAD
   "version": "5.1.0",
-=======
-  "version": "5.0.0",
->>>>>>> bc473fc8f9d840a5ba5bf8437da3d278dceadadd
   "type": "module",
   "scripts": {
     "dev": "vite",
