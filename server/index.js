@@ -4,7 +4,7 @@ import { fileURLToPath } from 'url';
 import sqlite3 from 'sqlite3';
 import { open } from 'sqlite';
 import cors from 'cors';
-import fetch from 'node-fetch'; // Explicit import for safety
+import fetch from 'node-fetch';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -37,7 +37,7 @@ app.get('/api/weather', async (req, res) => {
     const { city, key } = req.query;
     if (!city) return res.status(400).json({ error: "Missing city" });
 
-    // 1. OWM
+    // 1. OWM (Ưu tiên)
     if (key && key !== 'null' && key !== '') {
         try {
             const url = `https://api.openweathermap.org/data/2.5/weather?q=${encodeURIComponent(city)}&appid=${key}&units=metric&lang=vi`;

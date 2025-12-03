@@ -1,0 +1,6 @@
+version: '3.8'
+services:
+  web:
+    build: .
+    ports: ["1060:3000"]
+    volumes: ["/Users/giatran/gemini-data:/app/data"]
