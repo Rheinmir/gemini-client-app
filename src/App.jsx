@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm'; // IMPORT MỚI
 import { Send, Bot, User, Plus, MessageSquare, Trash2, Settings, Menu, X, Sparkles, Download, Upload, Zap, Brain, Database, Cpu, Wrench, ScrollText, Palette, CloudSun, Cloud, Edit2, Check } from 'lucide-react';
 import { GEMINI_TOOLS } from './tools';
 import { generateTheme } from './themeHelper';
@@ -465,7 +466,7 @@ export default function App() {
                         <div className="font-black text-xs mb-2 opacity-80 flex items-center gap-1 uppercase tracking-widest border-b-2 border-current pb-1 w-fit">
                             {msg.role === 'user' ? <User size={12}/> : <Bot size={12}/>} {msg.role}
                         </div>
-                        <div className="markdown-content"><ReactMarkdown>{msg.text}</ReactMarkdown></div>
+                        <div className="markdown-content"><ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.text}</ReactMarkdown></div>
                     </div>
                 </div>
             ))}
