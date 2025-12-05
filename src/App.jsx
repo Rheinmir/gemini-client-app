@@ -348,11 +348,16 @@ export default function App() {
   const currentSessionMessages = sessions.find(s => s.id === currentSessionId)?.messages || [];
 
   if (isConfiguring) return (
-    <div className="min-h-screen flex items-center justify-center p-4 font-mono bg-[var(--app-bg)] transition-colors">
-        <div className="max-w-2xl w-full bg-[var(--component-bg)] text-[var(--text-color)] border-4 border-[var(--border-color)] shadow-hard-lg p-8 max-h-[90vh] overflow-y-auto rounded-none">
-            <h1 className="text-3xl font-black mb-6 flex items-center gap-3 uppercase tracking-tighter"><Settings size={32}/> CẤU HÌNH BOT</h1>
+    // Main container for configuration screen (fixed, centered)
+    <div className="fixed inset-0 flex items-center justify-center p-4 font-mono bg-[var(--app-bg)] transition-colors z-[100]">
+        <div className="max-w-2xl w-full bg-[var(--component-bg)] text-[var(--text-color)] border-4 border-[var(--border-color)] shadow-hard-lg rounded-none flex flex-col max-h-[95vh]">
             
-            <div className="space-y-6">
+            {/* Header (fixed at top of modal) */}
+            <h1 className="text-3xl font-black p-8 pb-4 flex items-center gap-3 uppercase tracking-tighter flex-shrink-0"><Settings size={32}/> CẤU HÌNH BOT</h1>
+            
+            {/* Scrollable Form Body */}
+            <div className="flex-1 overflow-y-auto px-8 pt-0 space-y-6">
+                
                 <div className="border-4 border-[var(--border-color)] p-4 bg-yellow-200 text-black shadow-hard-sm">
                     <h3 className="font-bold flex items-center gap-2 mb-2 uppercase"><ScrollText size={20}/> Nhập Vai (System Prompt)</h3>
                     <textarea rows="3" value={config.systemInstruction} onChange={e => setConfig({...config, systemInstruction: e.target.value})} className="w-full border-2 border-black p-3 text-sm font-bold bg-white focus:outline-none focus:ring-2 ring-black"/>
@@ -384,7 +389,13 @@ export default function App() {
                         <option value="openai">OpenAI Compatible</option>
                     </select>
                 </div>
+                
+                {/* Add margin to bottom of scrollable content */}
+                <div className="h-4"></div> 
+            </div>
 
+            {/* Sticky Footer (Save Button) */}
+            <div className="p-4 border-t-4 border-[var(--border-color)] flex-shrink-0 bg-[var(--component-bg)]">
                 <button onClick={() => saveConfig(config)} className="w-full bg-[var(--accent-color)] text-white font-black text-xl py-4 border-4 border-[var(--border-color)] shadow-hard hover:translate-y-1 hover:shadow-none transition-all uppercase">LƯU & BẮT ĐẦU</button>
             </div>
         </div>
