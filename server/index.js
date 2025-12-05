@@ -256,7 +256,6 @@ app.patch('/api/sessions/:id/title', async (req, res) => {
 
 app.delete('/api/sessions/:id', async (req, res) => {
   try {
-    const db = await dbPromise;
     await db.run('DELETE FROM sessions WHERE id = ?', req.params.id);
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: err.message }); }

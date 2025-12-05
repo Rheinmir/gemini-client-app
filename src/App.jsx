@@ -468,51 +468,151 @@ export default function App() {
         <div className="fixed inset-0 bg-black/50 z-40 md:hidden" onClick={() => setShowSidebar(false)} />
       )}
       
-      {/* Sidebar fixed + collapsed logic - Z-50 */}
-      <div className={`
-          fixed inset-y-0 left-0 z-50 
-          w-[260px] bg-[var(--sidebar-bg)] border-r-4 border-[var(--border-color)] 
-          flex flex-col transition-all duration-300 ease-in-out
-          ${showSidebar ? 'translate-x-0' : '-translate-x-full'}
-          md:relative md:translate-x-0 
-          ${!showSidebar && 'md:w-0 md:overflow-hidden md:border-r-0'} 
-          `}>
-          
-          <div className="p-4 border-b-4 border-[var(--border-color)] flex justify-between items-center bg-[var(--accent-color)] text-white px-4 min-w-[260px]">
-             <h2 className="font-black text-xl flex gap-2 uppercase tracking-tight"><Sparkles/> {config.activeProvider.toUpperCase()}</h2>
-             <button onClick={() => setShowSidebar(false)} className="md:hidden"><X/></button>
-          </div>
-          <div className="p-4 min-w-[260px]">
-            <button onClick={createNewSession} className="w-full bg-[var(--component-bg)] text-[var(--text-color)] border-2 border-[var(--border-color)] p-3 rounded-lg font-bold shadow-hard hover:shadow-none hover:translate-y-1 flex items-center justify-center gap-2 uppercase transition-all">
-              <Plus/> New Chat
+      {/* SIDEBAR NEW DESIGN */}
+      <div
+        className={`
+          fixed inset-y-0 left-0 z-50
+          w-[270px] bg-[var(--sidebar-bg)]
+          border-r-4 border-[var(--border-color)]
+          flex flex-col
+          transition-transform duration-300 ease-in-out
+          ${showSidebar ? "translate-x-0" : "-translate-x-full"}
+          md:relative md:translate-x-0
+          ${!showSidebar && 'md:w-0 md:overflow-hidden md:border-r-0'}
+        `}
+      >
+
+        {/* HEADER */}
+        <div className="p-4 border-b-4 border-[var(--border-color)] bg-[var(--accent-color)] text-white flex justify-between items-center">
+          <h2 className="font-black text-xl tracking-tight flex gap-2 uppercase">
+            <Sparkles size={22}/> {config.activeProvider.toUpperCase()}
+          </h2>
+          <button onClick={() => setShowSidebar(false)} className="md:hidden">
+            <X size={22} />
+          </button>
+        </div>
+
+        {/* NEW CHAT BUTTON */}
+        <div className="p-4">
+          <button
+            onClick={createNewSession}
+            className="
+              w-full bg-[var(--component-bg)] border-4 border-[var(--border-color)]
+              p-3 rounded-lg font-black text-sm
+              shadow-hard hover:shadow-none hover:translate-y-[2px]
+              transition-all flex items-center justify-center gap-2 uppercase
+            "
+          >
+            <Plus size={18} /> New Chat
+          </button>
+        </div>
+
+        {/* SESSION LIST */}
+        <div className="flex-1 overflow-y-auto px-4 pb-6 space-y-3">
+
+          {sessions.map((s) => (
+            <div
+              key={s.id}
+              onClick={() => {
+                setCurrentSessionId(s.id);
+                logAction("UI_SWITCH_SESSION", { sessionId: s.id });
+                if (window.innerWidth < 768) setShowSidebar(false);
+              }}
+              className={`
+                border-4 border-[var(--border-color)] rounded-lg p-3 cursor-pointer
+                shadow-hard hover:shadow-none transition-all
+                flex flex-col group
+                ${currentSessionId === s.id
+                  ? "bg-[var(--accent-color)] text-white"
+                  : "bg-[var(--component-bg)]"
+                }
+              `}
+            >
+              <div className="flex items-center justify-between">
+                {editingSessionId === s.id ? (
+                  <input
+                    autoFocus
+                    value={renameText}
+                    onChange={(e) => setRenameText(e.target.value)}
+                    onBlur={() => saveRename(s.id)}
+                    onKeyDown={(e) => e.key === "Enter" && saveRename(s.id)}
+                    onClick={e => e.stopPropagation()}
+                    className="
+                      bg-white text-black border-2 border-black p-1 rounded
+                      w-full text-xs font-bold
+                    "
+                  />
+                ) : (
+                  <span className="font-black text-sm truncate flex-1">
+                    {s.title}
+                  </span>
+                )}
+
+                <div className="flex gap-2 ml-2">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      startRenaming(e, s);
+                    }}
+                    className="opacity-0 group-hover:opacity-100 transition-opacity hover:text-blue-500"
+                  >
+                    <Edit2 size={16} />
+                  </button>
+
+                  <button
+                    onClick={(e) => deleteSession(e, s.id)}
+                    className="hover:text-red-500"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
+
+        </div>
+
+        {/* FOOTER BUTTONS */}
+        <div className="p-4 border-t-4 border-[var(--border-color)] bg-[var(--component-bg)]">
+          <div className="grid grid-cols-2 gap-3">
+
+            {/* SAVE */}
+            <button
+              onClick={handleExportToon}
+              className="
+                flex items-center justify-center gap-2
+                text-xs font-black uppercase
+                p-3 rounded bg-yellow-300 text-black
+                border-4 border-[var(--border-color)]
+                shadow-hard-sm hover:shadow-none transition-all
+              "
+            >
+              <Download size={16} /> Save
             </button>
+
+            {/* LOAD */}
+            <button
+              onClick={() => fileInputRef.current.click()}
+              className="
+                flex items-center justify-center gap-2
+                text-xs font-black uppercase
+                p-3 rounded bg-green-300 text-black
+                border-4 border-[var(--border-color)]
+                shadow-hard-sm hover:shadow-none transition-all
+              "
+            >
+              <Upload size={16} /> Load
+            </button>
+
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleImportToon}
+              accept=".toon"
+              className="hidden"
+            />
           </div>
-          <div className="flex-1 overflow-y-auto px-3 space-y-2 min-w-[260px]">
-              {sessions.map(s => (
-                  <div key={s.id} onClick={() => { 
-                    setCurrentSessionId(s.id); 
-                    logAction('UI_SWITCH_SESSION', { sessionId: s.id }); // Log switch session
-                    if(window.innerWidth < 768) setShowSidebar(false); 
-                  }} className={`p-3 border-2 border-[var(--border-color)] rounded-lg cursor-pointer truncate transition-all ${currentSessionId === s.id ? 'bg-[var(--accent-color)] text-white shadow-hard-sm' : 'bg-[var(--component-bg)] hover:bg-gray-100'}`}>
-                      <div className="flex justify-between items-center group">
-                          {editingSessionId === s.id ? (
-                              <input autoFocus value={renameText} onChange={e => setRenameText(e.target.value)} onBlur={() => saveRename(s.id)} onKeyDown={e => e.key === 'Enter' && saveRename(s.id)} onClick={e => e.stopPropagation()} className="w-full bg-white text-black border border-black p-1 text-xs font-bold rounded" />
-                          ) : (
-                              <div className="flex items-center gap-2 w-full overflow-hidden">
-                                  <span className="truncate font-bold text-sm flex-1">{s.title}</span>
-                                  <button onClick={(e) => startRenaming(e, s)} className="opacity-0 group-hover:opacity-100 hover:text-blue-500 transition-opacity"><Edit2 size={12}/></button>
-                              </div>
-                          )}
-                          <button onClick={(e) => deleteSession(e, s.id)} className="hover:text-red-500 ml-1"><Trash2 size={16}/></button>
-                      </div>
-                  </div>
-              ))}
-          </div>
-          <div className="p-3 border-t-4 border-[var(--border-color)] bg-[var(--component-bg)] grid grid-cols-2 gap-2 min-w-[260px]">
-             <button onClick={handleExportToon} className="flex items-center justify-center gap-1 text-xs font-black border-4 border-[var(--border-color)] p-2 rounded bg-yellow-300 text-black hover:bg-yellow-400 shadow-hard-sm hover:shadow-none transition-all uppercase"><Download size={14} /> SAVE</button>
-             <input type="file" ref={fileInputRef} onChange={handleImportToon} className="hidden" accept=".toon" />
-             <button onClick={() => fileInputRef.current.click()} className="flex items-center justify-center gap-1 text-xs font-black border-4 border-[var(--border-color)] p-2 rounded bg-green-300 text-black hover:bg-green-400 shadow-hard-sm hover:shadow-none transition-all uppercase"><Upload size={14} /> LOAD</button>
-          </div>
+        </div>
       </div>
 
       <div className="flex-1 flex flex-col h-full relative overflow-x-hidden min-w-0">
