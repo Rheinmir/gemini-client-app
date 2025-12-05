@@ -392,7 +392,7 @@ export default function App() {
   );
 
   return (
-    <div className="flex h-screen overflow-hidden font-mono bg-[var(--app-bg)] text-[var(--text-color)] transition-colors">
+    <div className="flex h-screen overflow-hidden font-mono bg-[var(--app-bg)] text-[var(--text-color)] transition-colors w-screen">
       {/* Mobile Backdrop - Z-40 */}
       {showSidebar && (
         <div className="fixed inset-0 bg-black/50 z-40 md:hidden" onClick={() => setShowSidebar(false)} />
@@ -441,12 +441,11 @@ export default function App() {
           </div>
       </div>
 
-      <div className="flex-1 flex flex-col h-full relative">
+      <div className="flex-1 flex flex-col h-full relative overflow-x-hidden min-w-0">
         {/* Header - Z-10 */}
-        <header className="bg-[var(--component-bg)] border-b-4 border-[var(--border-color)] h-16 flex justify-between items-center px-4 shadow-sm z-10">
-            <div className="flex items-center gap-4 overflow-hidden">
+        <header className="bg-[var(--component-bg)] border-b-4 border-[var(--border-color)] h-16 flex justify-between items-center px-4 shadow-sm z-10 flex-shrink-0">
+            <div className="flex items-center gap-4 overflow-hidden flex-1 min-w-0">
                 <button onClick={() => setShowSidebar(!showSidebar)}><Menu/></button>
-                {/* FIX: Thêm flex-1 min-w-0 để tiêu đề không tràn */}
                 <h1 className="font-black text-xl md:text-2xl uppercase tracking-tight flex-1 min-w-0 truncate">{sessions.find(s => s.id === currentSessionId)?.title}</h1>
             </div>
             <div className="flex items-center gap-3 flex-shrink-0">
@@ -460,15 +459,13 @@ export default function App() {
         </header>
 
         {/* Content Area */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-6">
+        <div className="flex-1 overflow-y-auto p-4 space-y-6 min-w-0">
             {currentSessionMessages.map((msg, idx) => (
                 <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                    {/* FIX: Thêm break-words */}
                     <div className={`max-w-[85%] md:max-w-[70%] p-4 border-4 border-[var(--border-color)] rounded-lg text-base font-medium shadow-hard ${msg.role === 'user' ? 'bg-[var(--accent-color)] text-white' : 'bg-[var(--component-bg)]'} break-words`}>
                         <div className="font-black text-xs mb-2 opacity-80 flex items-center gap-1 uppercase tracking-widest border-b-2 border-current pb-1 w-fit">
                             {msg.role === 'user' ? <User size={12}/> : <Bot size={12}/>} {msg.role}
                         </div>
-                        {/* FIX: Thêm remarkGfm để render table */}
                         <div className="markdown-content"><ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.text}</ReactMarkdown></div>
                     </div>
                 </div>
@@ -479,10 +476,10 @@ export default function App() {
         </div>
 
         {/* Footer Input - Z-10 */}
-        <div className="bg-[var(--component-bg)] border-t-4 border-[var(--border-color)] p-6 z-10">
+        <div className="bg-[var(--component-bg)] border-t-4 border-[var(--border-color)] p-6 z-10 flex-shrink-0">
             <div className="max-w-4xl mx-auto flex gap-3 relative">
                 <div className="relative flex items-center z-50">
-                    <button onClick={() => setForcedTool(forcedTool ? null : 'auto')} className={`p-3 border-4 border-[var(--border-color)] shadow-hard hover:shadow-none transition-all ${forcedTool ? 'bg-red-500 text-white animate-pulse' : 'bg-gray-200 text-black'}`} title="Ép dùng Tool"><Wrench size={24}/></button>
+                    <button onClick={() => setShowSidebar(!showSidebar)} className={`p-3 border-4 border-[var(--border-color)] shadow-hard hover:shadow-none transition-all ${forcedTool ? 'bg-red-500 text-white animate-pulse' : 'bg-gray-200 text-black'}`} title="Ép dùng Tool"><Wrench size={24}/></button>
                     {forcedTool === 'auto' && (
                         <div className="absolute bottom-full left-0 mb-2 w-48 bg-white border-4 border-black shadow-hard flex flex-col z-50 overflow-hidden">
                             <button onClick={() => setForcedTool('search_memory')} className="p-3 hover:bg-gray-200 text-left text-xs font-bold border-b border-black">🔍 Tìm Ký Ức</button>
