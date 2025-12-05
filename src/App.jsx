@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm'; 
-import { Send, Bot, User, Plus, MessageSquare, Trash2, Settings, Menu, X, Sparkles, Download, Upload, Zap, Brain, Database, Cpu, Wrench, ScrollText, Palette, CloudSun, Cloud, Edit2, Check } from 'lucide-react';
+import { Send, Bot, User, Plus, MessageSquare, Trash2, Settings, Menu, X, Sparkles, Download, Upload, Zap, Brain, Database, Cpu, Wrench, ScrollText, Palette, CloudSun, Cloud, Edit2, Check, BarChart3 } from 'lucide-react';
 import { GEMINI_TOOLS } from './tools';
 import { generateTheme } from './themeHelper';
 
@@ -12,8 +12,26 @@ KỸ NĂNG:
 1. search_memory: Tìm kiếm thông tin cũ.
 2. change_theme_color: Đổi màu giao diện.
 3. get_weather: Xem dự báo thời tiết CHÍNH XÁC tại thành phố.
+4. get_app_insights: Lấy dữ liệu phân tích.
 
 NHIỆM VỤ: Trả lời ngắn gọn, hài hước, hữu ích. Dùng Markdown (in đậm, list) để trình bày đẹp.`;
+
+// Async function to log actions
+const logAction = async (type, detail = {}, sessionId = null) => {
+    try {
+        await fetch('/api/log', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                action_type: type, 
+                detail: detail, 
+                session_id: sessionId 
+            })
+        });
+    } catch (e) {
+        console.error("Failed to log action:", e);
+    }
+};
 
 export default function App() {
   const [config, setConfig] = useState({
@@ -82,12 +100,14 @@ export default function App() {
         setIsConfiguring(true); 
     }
     fetchSessions();
+    logAction('UI_APP_LOAD'); // Log app load
   }, []);
 
   const saveConfig = (newConfig) => {
       setConfig(newConfig);
       localStorage.setItem('app_config', JSON.stringify(newConfig));
       setIsConfiguring(false);
+      logAction('UI_SAVE_CONFIG', { provider: newConfig.activeProvider }); // Log save config
   };
 
   const fetchSessions = async () => {
@@ -114,7 +134,12 @@ export default function App() {
     } catch (err) { setDbStatus('offline'); }
   };
 
-  const deleteSessionFromDb = async (id) => { try { await fetch(`/api/sessions/${id}`, { method: 'DELETE' }); } catch(err) {} };
+  const deleteSessionFromDb = async (id) => { 
+    try { 
+        await fetch(`/api/sessions/${id}`, { method: 'DELETE' }); 
+        logAction('UI_DELETE_SESSION', { sessionId: id }); // Log delete session
+    } catch(err) {} 
+  };
 
   const startRenaming = (e, session) => {
       e.stopPropagation();
@@ -124,6 +149,7 @@ export default function App() {
 
   const saveRename = async (id) => {
       if (!renameText.trim()) return;
+      const oldTitle = sessions.find(s => s.id === id)?.title || '';
       setSessions(prev => prev.map(s => s.id === id ? { ...s, title: renameText } : s));
       setEditingSessionId(null);
       try {
@@ -132,6 +158,7 @@ export default function App() {
               headers: {'Content-Type': 'application/json'},
               body: JSON.stringify({ title: renameText })
           });
+          logAction('UI_RENAME_SESSION', { sessionId: id, oldTitle, newTitle: renameText }); // Log rename session
       } catch (err) { console.error("Rename failed", err); }
   };
 
@@ -144,6 +171,7 @@ export default function App() {
     setSessions(prev => [newSession, ...prev]);
     setCurrentSessionId(newSession.id);
     saveSessionToDb(newSession);
+    logAction('UI_CREATE_SESSION', { sessionId: newSession.id }); // Log create session
     if (window.innerWidth < 768) setShowSidebar(false);
   };
 
@@ -167,6 +195,7 @@ export default function App() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    logAction('UI_EXPORT_DATA', { sessionCount: sessions.length }); // Log export data
   };
 
   const handleImportToon = (e) => {
@@ -181,6 +210,7 @@ export default function App() {
             setCurrentSessionId(parsed.data[0]?.id);
             for (const sess of parsed.data) await saveSessionToDb(sess);
             alert('Import thành công!');
+            logAction('UI_IMPORT_DATA', { importedSessionCount: parsed.data.length }); // Log import data
         } else { alert('File lỗi!'); }
       } catch (err) { alert('Lỗi đọc file!'); }
     };
@@ -188,9 +218,15 @@ export default function App() {
     e.target.value = ''; 
   };
 
+  const handleForceToolChange = (toolName) => {
+      setForcedTool(toolName);
+      logAction('UI_FORCE_TOOL', { tool: toolName }); // Log force tool selection
+  };
+  
   const executeTool = async (functionName, args) => {
       if (functionName === 'search_memory') {
           setToolStatus(`🔍 Đang tìm: "${args.keyword}"...`);
+          logAction('TOOL_SEARCH_MEMORY', { keyword: args.keyword }, currentSessionId);
           try {
               const res = await fetch(`/api/search?q=${encodeURIComponent(args.keyword)}`);
               const data = await res.json();
@@ -207,11 +243,13 @@ export default function App() {
           applyTheme(newTheme);
           await fetch('/api/settings/theme', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(newTheme) });
           setTimeout(() => setToolStatus(null), 1000);
+          logAction('TOOL_CHANGE_THEME_COLOR', { color: colorInput }, currentSessionId); // Log tool usage
           return `Đã đổi sang theme: ${colorInput}.`;
       }
 
       if (functionName === 'get_weather') {
           setToolStatus(`🌤️ Đang xem thời tiết ${args.city}...`);
+          logAction('TOOL_GET_WEATHER', { city: args.city }, currentSessionId); // Log tool usage
           try {
               const res = await fetch(`/api/weather?city=${encodeURIComponent(args.city)}&key=${config.weatherKey}`);
               const data = await res.json();
@@ -226,6 +264,20 @@ export default function App() {
               return `Thời tiết tại ${data.location} ${src}:\n* **Nhiệt độ:** ${data.temperature}°C\n* **Tình trạng:** ${data.description}\n* **Cảm giác:** ${data.feels_like || data.temperature}°C\n* **Độ ẩm:** ${data.humidity}%\n* **Gió:** ${data.wind_speed} m/s`;
           } catch (e) { return `⚠️ Lỗi mạng nghiêm trọng: ${e.message}`; }
       }
+      
+      if (functionName === 'get_app_insights') {
+          setToolStatus(`📊 Đang thu thập Insights...`);
+          logAction('TOOL_GET_APP_INSIGHTS', {}, currentSessionId); // Log tool usage
+          try {
+              const res = await fetch('/api/insights');
+              const data = await res.json();
+              setTimeout(() => setToolStatus(null), 1000);
+              return JSON.stringify(data);
+          } catch (e) {
+              return `⚠️ Lỗi khi lấy Insights: ${e.message}`;
+          }
+      }
+
 
       return "Tool không tồn tại.";
   };
@@ -309,16 +361,20 @@ export default function App() {
     setInput('');
     setIsLoading(true);
 
+    logAction('UI_SEND_MESSAGE', { message: userText, provider: config.activeProvider }, currentSessionId); // Log send message
+
     let tempSystemPrompt = null;
     
     const lowerInput = userText.toLowerCase();
     const normInput = lowerInput.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
+    // Check for Tool usage trigger phrases (including the new insight tool)
     if (forcedTool && forcedTool !== 'auto') {
         tempSystemPrompt = `${config.systemInstruction}\n[SYSTEM]: BẮT BUỘC gọi tool '${forcedTool}' ngay. Bỏ qua ngữ cảnh cũ.`;
         if (forcedTool === 'get_weather') setToolStatus("🌤️ Đang kết nối vệ tinh...");
         if (forcedTool === 'change_theme_color') setToolStatus("🎨 Đang chọn màu...");
         if (forcedTool === 'search_memory') setToolStatus("🧠 Đang lục lọi ký ức...");
+        if (forcedTool === 'get_app_insights') setToolStatus("📊 Đang thu thập Insights...");
     } else if (['màu', 'theme', 'nền', 'giao diện', 'mau', 'nen'].some(k => normInput.includes(k))) {
         tempSystemPrompt = `${config.systemInstruction}\n[SYSTEM]: Người dùng muốn đổi màu. Hãy gọi tool 'change_theme_color' NGAY LẬP TỨC.`;
         setToolStatus("🎨 Đang phân tích màu sắc...");
@@ -328,6 +384,9 @@ export default function App() {
     } else if (['nhớ', 'quên', 'lục lại', 'tìm lại', 'đã nói', 'ký ức', 'ky uc'].some(k => normInput.includes(k))) {
         tempSystemPrompt = `${config.systemInstruction}\n[SYSTEM]: Người dùng muốn tìm ký ức. Hãy gọi tool 'search_memory' NGAY LẬP TỨC.`;
         setToolStatus("🧠 Đang kết nối ký ức...");
+    } else if (['phân tích', 'insight', 'thống kê', 'dữ liệu', 'phan tich', 'thong ke', 'du lieu'].some(k => normInput.includes(k))) {
+        tempSystemPrompt = `${config.systemInstruction}\n[SYSTEM]: Người dùng muốn xem phân tích/thống kê app. Hãy gọi tool 'get_app_insights' NGAY LẬP TỨC.`;
+        setToolStatus("📊 Đang thu thập Insights...");
     }
 
     try {
@@ -430,8 +489,12 @@ export default function App() {
           </div>
           <div className="flex-1 overflow-y-auto px-3 space-y-2 min-w-[260px]">
               {sessions.map(s => (
-                  <div key={s.id} onClick={() => { setCurrentSessionId(s.id); if(window.innerWidth < 768) setShowSidebar(false); }} className={`p-3 border-2 border-[var(--border-color)] rounded-lg cursor-pointer truncate transition-all ${currentSessionId === s.id ? 'bg-[var(--accent-color)] text-white shadow-hard-sm' : 'bg-[var(--component-bg)] hover:bg-gray-100'}`}>
-                      <div className="flex justify-between items-center">
+                  <div key={s.id} onClick={() => { 
+                    setCurrentSessionId(s.id); 
+                    logAction('UI_SWITCH_SESSION', { sessionId: s.id }); // Log switch session
+                    if(window.innerWidth < 768) setShowSidebar(false); 
+                  }} className={`p-3 border-2 border-[var(--border-color)] rounded-lg cursor-pointer truncate transition-all ${currentSessionId === s.id ? 'bg-[var(--accent-color)] text-white shadow-hard-sm' : 'bg-[var(--component-bg)] hover:bg-gray-100'}`}>
+                      <div className="flex justify-between items-center group">
                           {editingSessionId === s.id ? (
                               <input autoFocus value={renameText} onChange={e => setRenameText(e.target.value)} onBlur={() => saveRename(s.id)} onKeyDown={e => e.key === 'Enter' && saveRename(s.id)} onClick={e => e.stopPropagation()} className="w-full bg-white text-black border border-black p-1 text-xs font-bold rounded" />
                           ) : (
@@ -460,7 +523,10 @@ export default function App() {
                 <h1 className="font-black text-xl md:text-2xl uppercase tracking-tight flex-1 min-w-0 truncate">{sessions.find(s => s.id === currentSessionId)?.title}</h1>
             </div>
             <div className="flex items-center gap-3 flex-shrink-0">
-                <button onClick={() => setUseFullContext(!useFullContext)} className={`hidden sm:flex items-center gap-2 px-3 py-1.5 text-xs font-black border-2 border-[var(--border-color)] rounded shadow-hard-sm hover:shadow-none transition-all uppercase ${useFullContext ? 'bg-pink-400 text-black' : 'bg-emerald-400 text-black'}`}>
+                <button onClick={() => {
+                    setUseFullContext(!useFullContext);
+                    logAction('UI_TOGGLE_CONTEXT', { useFullContext: !useFullContext }); // Log context toggle
+                }} className={`hidden sm:flex items-center gap-2 px-3 py-1.5 text-xs font-black border-2 border-[var(--border-color)] rounded shadow-hard-sm hover:shadow-none transition-all uppercase ${useFullContext ? 'bg-pink-400 text-black' : 'bg-emerald-400 text-black'}`}>
                     {useFullContext ? <Brain size={14} /> : <Zap size={14} />} <span>{useFullContext ? 'FULL' : 'ECO'}</span>
                 </button>
 
@@ -490,14 +556,15 @@ export default function App() {
         <div className="bg-[var(--component-bg)] border-t-4 border-[var(--border-color)] p-6 z-10 flex-shrink-0">
             <div className="max-w-4xl mx-auto flex gap-3 relative">
                 <div className="relative flex items-center z-50">
-                    <button onClick={() => setForcedTool(forcedTool === 'auto' ? null : 'auto')} className={`p-3 border-4 border-[var(--border-color)] shadow-hard hover:shadow-none transition-all ${forcedTool && forcedTool !== 'auto' ? 'bg-red-500 text-white animate-pulse' : 'bg-gray-200 text-black'}`} title="Ép dùng Tool (Click để chọn)"><Wrench size={24}/></button>
+                    <button onClick={() => handleForceToolChange(forcedTool === 'auto' ? null : 'auto')} className={`p-3 border-4 border-[var(--border-color)] shadow-hard hover:shadow-none transition-all ${forcedTool && forcedTool !== 'auto' ? 'bg-red-500 text-white animate-pulse' : 'bg-gray-200 text-black'}`} title="Ép dùng Tool (Click để chọn)"><Wrench size={24}/></button>
                     {forcedTool === 'auto' && (
                         // Dropdown menu for tool selection
                         <div className="absolute bottom-full left-0 mb-2 w-48 bg-white border-4 border-black shadow-hard flex flex-col z-50 overflow-hidden">
-                            <button onClick={() => setForcedTool('search_memory')} className="p-3 hover:bg-gray-200 text-left text-xs font-black border-b border-black flex items-center gap-2">🔍 Tìm Ký Ức <Brain size={12} /></button>
-                            <button onClick={() => setForcedTool('change_theme_color')} className="p-3 hover:bg-gray-200 text-left text-xs font-black border-b border-black flex items-center gap-2">🎨 Đổi Màu <Palette size={12} /></button>
-                            <button onClick={() => setForcedTool('get_weather')} className="p-3 hover:bg-gray-200 text-left text-xs font-black flex items-center gap-2">🌤️ Thời Tiết <CloudSun size={12} /></button>
-                            <button onClick={() => setForcedTool(null)} className="p-3 hover:bg-gray-200 text-left text-xs font-black text-red-600 flex items-center gap-2 border-t-2 border-red-300"><X size={12} /> Hủy Bỏ</button>
+                            <button onClick={() => handleForceToolChange('search_memory')} className="p-3 hover:bg-gray-200 text-left text-xs font-black border-b border-black flex items-center gap-2">🔍 Tìm Ký Ức <Brain size={12} /></button>
+                            <button onClick={() => handleForceToolChange('change_theme_color')} className="p-3 hover:bg-gray-200 text-left text-xs font-black border-b border-black flex items-center gap-2">🎨 Đổi Màu <Palette size={12} /></button>
+                            <button onClick={() => handleForceToolChange('get_weather')} className="p-3 hover:bg-gray-200 text-left text-xs font-black border-b border-black flex items-center gap-2">🌤️ Thời Tiết <CloudSun size={12} /></button>
+                            <button onClick={() => handleForceToolChange('get_app_insights')} className="p-3 hover:bg-gray-200 text-left text-xs font-black border-b border-black flex items-center gap-2">📊 App Insights <BarChart3 size={12} /></button>
+                            <button onClick={() => handleForceToolChange(null)} className="p-3 hover:bg-gray-200 text-left text-xs font-black text-red-600 flex items-center gap-2 border-t-2 border-red-300"><X size={12} /> Hủy Bỏ</button>
                         </div>
                     )}
                 </div>

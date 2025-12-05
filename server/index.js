@@ -23,8 +23,18 @@ const dbPromise = open({
 const initDb = async () => {
   try {
     const db = await dbPromise;
+    // Bảng sessions và settings đã có
     await db.exec(`CREATE TABLE IF NOT EXISTS sessions (id TEXT PRIMARY KEY, title TEXT, messages TEXT, provider TEXT DEFAULT 'gemini', updated_at DATETIME DEFAULT CURRENT_TIMESTAMP)`);
     await db.exec(`CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)`);
+    // Bảng Logs mới
+    await db.exec(`CREATE TABLE IF NOT EXISTS logs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+        action_type TEXT NOT NULL, 
+        detail TEXT, 
+        session_id TEXT
+    )`);
+
     const defaultTheme = JSON.stringify({ appBg: '#bfdbfe', sidebarBg: '#ffffff', componentBg: '#ffffff', accentColor: '#3b82f6', textColor: '#000000', borderColor: '#000000', shadowColor: '#000000' });
     await db.run(`INSERT OR IGNORE INTO settings (key, value) VALUES ('theme', ?)`, defaultTheme);
     console.log("✅ Database Ready");
@@ -33,6 +43,84 @@ const initDb = async () => {
 initDb();
 
 // --- API ROUTES ---
+
+// Log Action API
+app.post('/api/log', async (req, res) => {
+    const { action_type, detail, session_id } = req.body;
+    if (!action_type) return res.status(400).json({ error: "Missing action_type" });
+    try {
+        const db = await dbPromise;
+        await db.run(
+            `INSERT INTO logs (action_type, detail, session_id) VALUES (?, ?, ?)`,
+            [action_type, detail ? JSON.stringify(detail) : null, session_id || null]
+        );
+        res.json({ success: true });
+    } catch (err) { 
+        console.error("Log error:", err);
+        res.status(500).json({ error: err.message }); 
+    }
+});
+
+// Get App Insights API (Used by tool)
+app.get('/api/insights', async (req, res) => {
+    try {
+        const db = await dbPromise;
+        
+        // 1. Total Session Count
+        const totalSessions = await db.get(`SELECT COUNT(id) as count FROM sessions`);
+
+        // 2. Tool Usage Breakdown (Top 5 actions)
+        const toolUsage = await db.all(`
+            SELECT action_type, COUNT(id) as count
+            FROM logs
+            WHERE action_type LIKE 'TOOL\_%' ESCAPE '\'
+            GROUP BY action_type
+            ORDER BY count DESC
+            LIMIT 5
+        `);
+        
+        // 3. Theme Popularity (Top 3 theme change details)
+        const themeUsage = await db.all(`
+            SELECT detail, COUNT(id) as count
+            FROM logs
+            WHERE action_type = 'UI_THEME_CHANGE'
+            GROUP BY detail
+            ORDER BY count DESC
+            LIMIT 3
+        `);
+
+        // 4. Time Since Last Action
+        const lastAction = await db.get(`
+            SELECT timestamp FROM logs ORDER BY timestamp DESC LIMIT 1
+        `);
+
+        res.json({
+            total_sessions: totalSessions ? totalSessions.count : 0,
+            last_action_timestamp: lastAction ? lastAction.timestamp : 'Không có dữ liệu',
+            tool_usage_breakdown: toolUsage.map(t => ({
+                action: t.action_type.replace('TOOL_', ''),
+                count: t.count
+            })),
+            theme_popularity: themeUsage.map(t => {
+                try {
+                    const detail = JSON.parse(t.detail);
+                    return {
+                        color: detail.color,
+                        count: t.count
+                    };
+                } catch {
+                    return { color: 'Unknown', count: t.count };
+                }
+            })
+        });
+
+    } catch (err) {
+        console.error("Insights error:", err);
+        res.status(500).json({ error: "Lỗi khi truy vấn dữ liệu phân tích." });
+    }
+});
+
+
 app.get('/api/weather', async (req, res) => {
     const { city, key } = req.query;
     let debugLogs = [];
