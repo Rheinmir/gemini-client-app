@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm'; // IMPORT MỚI
+import remarkGfm from 'remark-gfm'; 
 import { Send, Bot, User, Plus, MessageSquare, Trash2, Settings, Menu, X, Sparkles, Download, Upload, Zap, Brain, Database, Cpu, Wrench, ScrollText, Palette, CloudSun, Cloud, Edit2, Check } from 'lucide-react';
 import { GEMINI_TOOLS } from './tools';
 import { generateTheme } from './themeHelper';
@@ -446,7 +446,8 @@ export default function App() {
         <header className="bg-[var(--component-bg)] border-b-4 border-[var(--border-color)] h-16 flex justify-between items-center px-4 shadow-sm z-10">
             <div className="flex items-center gap-4 overflow-hidden">
                 <button onClick={() => setShowSidebar(!showSidebar)}><Menu/></button>
-                <h1 className="font-black text-xl md:text-2xl truncate uppercase tracking-tight">{sessions.find(s => s.id === currentSessionId)?.title}</h1>
+                {/* FIX: Thêm flex-1 min-w-0 để tiêu đề không tràn */}
+                <h1 className="font-black text-xl md:text-2xl uppercase tracking-tight flex-1 min-w-0 truncate">{sessions.find(s => s.id === currentSessionId)?.title}</h1>
             </div>
             <div className="flex items-center gap-3 flex-shrink-0">
                 <button onClick={() => setUseFullContext(!useFullContext)} className={`hidden sm:flex items-center gap-2 px-3 py-1.5 text-xs font-black border-2 border-[var(--border-color)] rounded shadow-hard-sm hover:shadow-none transition-all uppercase ${useFullContext ? 'bg-pink-400 text-black' : 'bg-emerald-400 text-black'}`}>
@@ -462,10 +463,12 @@ export default function App() {
         <div className="flex-1 overflow-y-auto p-4 space-y-6">
             {currentSessionMessages.map((msg, idx) => (
                 <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                    <div className={`max-w-[85%] md:max-w-[70%] p-4 border-4 border-[var(--border-color)] rounded-lg text-base font-medium shadow-hard ${msg.role === 'user' ? 'bg-[var(--accent-color)] text-white' : 'bg-[var(--component-bg)]'}`}>
+                    {/* FIX: Thêm break-words */}
+                    <div className={`max-w-[85%] md:max-w-[70%] p-4 border-4 border-[var(--border-color)] rounded-lg text-base font-medium shadow-hard ${msg.role === 'user' ? 'bg-[var(--accent-color)] text-white' : 'bg-[var(--component-bg)]'} break-words`}>
                         <div className="font-black text-xs mb-2 opacity-80 flex items-center gap-1 uppercase tracking-widest border-b-2 border-current pb-1 w-fit">
                             {msg.role === 'user' ? <User size={12}/> : <Bot size={12}/>} {msg.role}
                         </div>
+                        {/* FIX: Thêm remarkGfm để render table */}
                         <div className="markdown-content"><ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.text}</ReactMarkdown></div>
                     </div>
                 </div>

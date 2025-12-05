@@ -48,15 +48,21 @@ h1, h2, h3, button, .font-bold {
     border-collapse: collapse;
     margin: 1rem 0;
     font-size: 0.9rem;
-    box-shadow: var(--hard-sm); /* Bóng đổ cho bảng */
+    box-shadow: var(--hard-sm);
+    /* BẮT BUỘC NGẮT CHUỖI DÀI */
+    word-break: break-all; 
+    overflow-wrap: break-word; 
+    table-layout: fixed; /* Cố định cột */
 }
 .markdown-content th, .markdown-content td {
-    border: 1px solid var(--border-color); /* Viền mỏng cho ô */
+    border: 2px solid var(--border-color); /* Sửa từ 1px lên 2px cho Toon */
     padding: 8px 12px;
     text-align: left;
+    background-color: var(--component-bg); /* Sửa màu nền ô */
+    word-break: break-word;
 }
 .markdown-content th {
-    background-color: var(--sidebar-bg); /* Màu header bảng */
+    background-color: var(--sidebar-bg);
     font-weight: 900;
     border-bottom: 3px solid var(--border-color);
 }
