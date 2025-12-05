@@ -11,7 +11,7 @@ const DEFAULT_SYSTEM_INSTRUCTION = `Bạn là Gemin-Toon, một trợ lý AI th�
 KỸ NĂNG:
 1. search_memory: Tìm kiếm thông tin cũ.
 2. change_theme_color: Đổi màu giao diện.
-3. get_weather: Xem thời tiết (Cần OpenWeatherMap Key).
+3. get_weather: Xem dự báo thời tiết CHÍNH XÁC tại thành phố.
 
 NHIỆM VỤ: Trả lời ngắn gọn, hài hước, hữu ích. Dùng Markdown (in đậm, list) để trình bày đẹp.`;
 
@@ -38,7 +38,7 @@ export default function App() {
   
   const [editingSessionId, setEditingSessionId] = useState(null);
   const [renameText, setRenameText] = useState('');
-  const [forcedTool, setForcedTool] = useState(null);
+  const [forcedTool, setForcedTool] = useState(null); // 'auto' for dropdown, or tool name
 
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -314,7 +314,7 @@ export default function App() {
     const lowerInput = userText.toLowerCase();
     const normInput = lowerInput.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
-    if (forcedTool) {
+    if (forcedTool && forcedTool !== 'auto') {
         tempSystemPrompt = `${config.systemInstruction}\n[SYSTEM]: BẮT BUỘC gọi tool '${forcedTool}' ngay. Bỏ qua ngữ cảnh cũ.`;
         if (forcedTool === 'get_weather') setToolStatus("🌤️ Đang kết nối vệ tinh...");
         if (forcedTool === 'change_theme_color') setToolStatus("🎨 Đang chọn màu...");
@@ -479,12 +479,14 @@ export default function App() {
         <div className="bg-[var(--component-bg)] border-t-4 border-[var(--border-color)] p-6 z-10 flex-shrink-0">
             <div className="max-w-4xl mx-auto flex gap-3 relative">
                 <div className="relative flex items-center z-50">
-                    <button onClick={() => setShowSidebar(!showSidebar)} className={`p-3 border-4 border-[var(--border-color)] shadow-hard hover:shadow-none transition-all ${forcedTool ? 'bg-red-500 text-white animate-pulse' : 'bg-gray-200 text-black'}`} title="Ép dùng Tool"><Wrench size={24}/></button>
+                    <button onClick={() => setForcedTool(forcedTool === 'auto' ? null : 'auto')} className={`p-3 border-4 border-[var(--border-color)] shadow-hard hover:shadow-none transition-all ${forcedTool && forcedTool !== 'auto' ? 'bg-red-500 text-white animate-pulse' : 'bg-gray-200 text-black'}`} title="Ép dùng Tool (Click để chọn)"><Wrench size={24}/></button>
                     {forcedTool === 'auto' && (
+                        // Dropdown menu for tool selection
                         <div className="absolute bottom-full left-0 mb-2 w-48 bg-white border-4 border-black shadow-hard flex flex-col z-50 overflow-hidden">
-                            <button onClick={() => setForcedTool('search_memory')} className="p-3 hover:bg-gray-200 text-left text-xs font-bold border-b border-black">🔍 Tìm Ký Ức</button>
-                            <button onClick={() => setForcedTool('change_theme_color')} className="p-3 hover:bg-gray-200 text-left text-xs font-bold border-b border-black">🎨 Đổi Màu</button>
-                            <button onClick={() => setForcedTool('get_weather')} className="p-3 hover:bg-gray-200 text-left text-xs font-bold">🌤️ Thời Tiết</button>
+                            <button onClick={() => setForcedTool('search_memory')} className="p-3 hover:bg-gray-200 text-left text-xs font-black border-b border-black flex items-center gap-2">🔍 Tìm Ký Ức <Brain size={12} /></button>
+                            <button onClick={() => setForcedTool('change_theme_color')} className="p-3 hover:bg-gray-200 text-left text-xs font-black border-b border-black flex items-center gap-2">🎨 Đổi Màu <Palette size={12} /></button>
+                            <button onClick={() => setForcedTool('get_weather')} className="p-3 hover:bg-gray-200 text-left text-xs font-black flex items-center gap-2">🌤️ Thời Tiết <CloudSun size={12} /></button>
+                            <button onClick={() => setForcedTool(null)} className="p-3 hover:bg-gray-200 text-left text-xs font-black text-red-600 flex items-center gap-2 border-t-2 border-red-300"><X size={12} /> Hủy Bỏ</button>
                         </div>
                     )}
                 </div>
