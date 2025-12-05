@@ -65,58 +65,64 @@ app.post('/api/log', async (req, res) => {
 app.get('/api/insights', async (req, res) => {
     try {
         const db = await dbPromise;
-        
-        // 1. Total Session Count
-        const totalSessions = await db.get(`SELECT COUNT(id) as count FROM sessions`);
 
-        // 2. Tool Usage Breakdown (Top 5 actions)
-        const toolUsage = await db.all(`
-            SELECT action_type, COUNT(id) as count
+        // Tổng số session
+        const s = await db.get(`SELECT COUNT(id) AS count FROM sessions`);
+        const sessionCount = s?.count || 0;
+
+        // Tổng số log
+        const l = await db.get(`SELECT COUNT(id) AS count FROM logs`);
+        const logCount = l?.count || 0;
+
+        // Tool usage (chỉ trả về dạng { tool: "X", count: N })
+        const tools = await db.all(`
+            SELECT action_type AS type, COUNT(id) AS count
             FROM logs
-            WHERE action_type LIKE 'TOOL\_%' ESCAPE '\'
+            WHERE action_type LIKE 'TOOL_%'
             GROUP BY action_type
+            ORDER BY count DESC
+        `);
+
+        const toolUsage = tools.map(t => ({
+            tool: t.type.replace("TOOL_", ""),
+            count: t.count
+        }));
+
+        // Theme usage – không parse JSON vì nhiều log có thể chứa text
+        const themes = await db.all(`
+            SELECT detail AS raw, COUNT(id) AS count
+            FROM logs
+            WHERE action_type = 'UI_THEME_CHANGE'
+            GROUP BY raw
             ORDER BY count DESC
             LIMIT 5
         `);
-        
-        // 3. Theme Popularity (Top 3 theme change details)
-        const themeUsage = await db.all(`
-            SELECT detail, COUNT(id) as count
-            FROM logs
-            WHERE action_type = 'UI_THEME_CHANGE'
-            GROUP BY detail
-            ORDER BY count DESC
-            LIMIT 3
-        `);
 
-        // 4. Time Since Last Action
-        const lastAction = await db.get(`
-            SELECT timestamp FROM logs ORDER BY timestamp DESC LIMIT 1
-        `);
+        const themeUsage = themes.map(t => ({
+            raw: t.raw,
+            count: t.count
+        }));
+
+        // Last action timestamp
+        const last = await db.get(`SELECT timestamp FROM logs ORDER BY id DESC LIMIT 1`);
+        const lastAction = last?.timestamp || null;
 
         res.json({
-            total_sessions: totalSessions ? totalSessions.count : 0,
-            last_action_timestamp: lastAction ? lastAction.timestamp : 'Không có dữ liệu',
-            tool_usage_breakdown: toolUsage.map(t => ({
-                action: t.action_type.replace('TOOL_', ''),
-                count: t.count
-            })),
-            theme_popularity: themeUsage.map(t => {
-                try {
-                    const detail = JSON.parse(t.detail);
-                    return {
-                        color: detail.color,
-                        count: t.count
-                    };
-                } catch {
-                    return { color: 'Unknown', count: t.count };
-                }
-            })
+            session_count: sessionCount,
+            log_count: logCount,
+            tool_usage: toolUsage,
+            theme_usage: themeUsage,
+            last_action: lastAction
         });
-
     } catch (err) {
         console.error("Insights error:", err);
-        res.status(500).json({ error: "Lỗi khi truy vấn dữ liệu phân tích." });
+        res.json({
+            session_count: 0,
+            log_count: 0,
+            tool_usage: [],
+            theme_usage: [],
+            last_action: null
+        });
     }
 });
 
