@@ -363,6 +363,13 @@ export default function App() {
     setIsLoading(true);
 
     logAction('UI_SEND_MESSAGE', { message: userText, provider: config.activeProvider }, currentSessionId); // Log send message
+    
+    // Đặt lại chiều cao textarea sau khi gửi
+    if (inputRef.current) {
+      inputRef.current.style.height = 'auto';
+      inputRef.current.focus();
+    }
+
 
     let tempSystemPrompt = null;
     

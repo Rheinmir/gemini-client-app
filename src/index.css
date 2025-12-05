@@ -19,21 +19,41 @@ body {
     transition: background-color 0.4s ease;
 }
 
-h1, h2, h3, button, .font-bold {
-    font-family: 'Nunito', sans-serif;
-    font-weight: 900;
+/* ----- SCROLLBAR AUTO-HIDE STYLE ----- */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--accent-color) transparent;
+}
+/* WebKit (Chrome, Edge, Safari) */
+::-webkit-scrollbar {
+  width: 10px;
+  transition: opacity 0.3s ease-in-out;
+  opacity: 0; /* Ẩn mặc định */
 }
 
-::-webkit-scrollbar {
-  width: 12px;
-}
 ::-webkit-scrollbar-track {
-  background: var(--app-bg);
-  border-left: 3px solid var(--border-color);
+  background: transparent;
 }
+
 ::-webkit-scrollbar-thumb {
   background: var(--accent-color);
   border: 3px solid var(--border-color);
+  border-radius: 10px;
+}
+/* Khi người dùng bắt đầu cuộn */
+*:hover::-webkit-scrollbar,
+*:focus::-webkit-scrollbar,
+*:active::-webkit-scrollbar {
+  opacity: 1;
+}
+/* Scrollbar fade-out sau khi ngừng cuộn */
+body, div, section, aside {
+  scrollbar-gutter: stable both-edges;
+}
+
+h1, h2, h3, button, .font-bold {
+    font-family: 'Nunito', sans-serif;
+    font-weight: 900;
 }
 
 /* MARKDOWN STYLES */
