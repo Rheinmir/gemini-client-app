@@ -60,6 +60,7 @@ export default function App() {
 
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
+  const inputRef = useRef(null); // ⭐ ĐÃ THÊM: Ref cho textarea
 
   const applyTheme = (themeData) => {
       if (!themeData) return;
@@ -668,7 +669,44 @@ export default function App() {
                         </div>
                     )}
                 </div>
-                <input type="text" value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()} placeholder={forcedTool && forcedTool !== 'auto' ? `[CHẾ ĐỘ ÉP TOOL]: ${forcedTool}...` : "Nhập tin nhắn..."} disabled={isLoading} className="flex-1 border-4 border-[var(--border-color)] p-4 shadow-hard text-lg font-bold bg-[var(--app-bg)] focus:outline-none focus:translate-y-1 focus:shadow-none transition-all placeholder-[var(--text-color)]/50"/>
+                {/* 🟣 BẢN NÂNG CẤP TEXTAREA AUTO-RESIZE */}
+                <textarea
+                  ref={inputRef}
+                  value={input}
+                  onChange={(e) => {
+                    setInput(e.target.value);
+
+                    // AUTO-RESIZE LOGIC
+                    const el = e.target;
+                    el.style.height = "auto";
+                    el.style.height = Math.min(el.scrollHeight, 180) + "px"; // max height 180px
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault();
+                      handleSendMessage();
+                    }
+                  }}
+                  placeholder={
+                    forcedTool && forcedTool !== "auto"
+                      ? `[CHẾ ĐỘ ÉP TOOL]: ${forcedTool}...`
+                      : "Nhập tin nhắn..."
+                  }
+                  disabled={isLoading}
+                  className="
+                    flex-1 resize-none
+                    border-4 border-[var(--border-color)]
+                    p-3 text-lg font-bold
+                    rounded-lg shadow-hard
+                    bg-[var(--app-bg)] placeholder-[var(--text-color)]/50
+                    focus:outline-none focus:shadow-none focus:translate-y-[2px]
+                    leading-snug
+                    max-h-[180px]
+                    overflow-y-auto
+                    transition-all
+                  "
+                  rows={1}
+                />
                 <button onClick={handleSendMessage} disabled={isLoading || !input.trim()} className="bg-[var(--accent-color)] text-white border-4 border-[var(--border-color)] px-8 shadow-hard hover:shadow-none hover:translate-y-1 font-black uppercase tracking-widest"><Send size={24}/></button>
             </div>
         </div>
