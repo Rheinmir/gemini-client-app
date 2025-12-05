@@ -392,12 +392,12 @@ export default function App() {
 
   return (
     <div className="flex h-screen overflow-hidden font-mono bg-[var(--app-bg)] text-[var(--text-color)] transition-colors">
-      {/* Mobile Backdrop */}
+      {/* Mobile Backdrop - Z-40 */}
       {showSidebar && (
-        <div className="fixed inset-0 bg-black/50 z-50 md:hidden" onClick={() => setShowSidebar(false)} />
+        <div className="fixed inset-0 bg-black/50 z-40 md:hidden" onClick={() => setShowSidebar(false)} />
       )}
       
-      {/* Sidebar fixed + collapsed logic */}
+      {/* Sidebar fixed + collapsed logic - Z-50 */}
       <div className={`
           fixed inset-y-0 left-0 z-50 
           w-[260px] bg-[var(--sidebar-bg)] border-r-4 border-[var(--border-color)] 
@@ -474,7 +474,7 @@ export default function App() {
             <div ref={messagesEndRef} />
         </div>
 
-        {/* Footer Input - Z-40 (Phải nằm dưới Sidebar Z-50, nhưng trên Backdrop Z-30) */}
+        {/* Footer Input - Z-10 */}
         <div className="bg-[var(--component-bg)] border-t-4 border-[var(--border-color)] p-6 z-10">
             <div className="max-w-4xl mx-auto flex gap-3 relative">
                 <div className="relative flex items-center z-50">
